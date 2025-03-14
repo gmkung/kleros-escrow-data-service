@@ -1,31 +1,14 @@
 export * from "./types";
 export * from "./services";
 export * from "./actions";
-export * from "./listeners";
+export * from "./client/KlerosEscrowClient";
 import { ethers } from "ethers";
 import { KlerosEscrowConfig } from "./types/config";
-import { TransactionService, DisputeService, ArbitratorService, EventService } from "./services";
-import { TransactionActions, DisputeActions, EvidenceActions } from "./actions";
-import { EventListeners } from "./listeners";
-import { IPFSService } from "./services/ipfs";
+import { KlerosEscrowClient } from "./client/KlerosEscrowClient";
 /**
- * Creates a complete Kleros Escrow client with all services and actions
+ * Creates a Kleros Escrow client
  * @param config The Kleros Escrow configuration
- * @param signerOrProvider A signer or provider
- * @returns An object containing all services and actions
+ * @param signer Optional signer for write operations
+ * @returns A client for interacting with Kleros Escrow
  */
-export declare function createKlerosEscrowClient(config: KlerosEscrowConfig, signerOrProvider: ethers.Signer | ethers.providers.Provider): {
-    services: {
-        transaction: TransactionService;
-        dispute: DisputeService;
-        arbitrator: ArbitratorService;
-        event: EventService;
-        ipfs: IPFSService;
-    };
-    actions: {
-        transaction: TransactionActions;
-        dispute: DisputeActions;
-        evidence: EvidenceActions;
-    };
-    listeners: EventListeners;
-};
+export declare function createKlerosEscrowClient(config: KlerosEscrowConfig, signer?: ethers.Signer): KlerosEscrowClient;

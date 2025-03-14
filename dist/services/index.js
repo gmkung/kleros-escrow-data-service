@@ -18,5 +18,5 @@ Object.defineProperty(exports, "__esModule", { value: true });
 __exportStar(require("./transaction"), exports);
 __exportStar(require("./dispute"), exports);
 __exportStar(require("./arbitrator"), exports);
-__exportStar(require("./events"), exports);
+__exportStar(require("./event"), exports);
 __exportStar(require("./ipfs"), exports);

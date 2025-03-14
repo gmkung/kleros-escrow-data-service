@@ -2,6 +2,91 @@
 
 This library provides a TypeScript interface for interacting with the Kleros MultipleArbitrableTransaction contract, which enables secure escrow transactions with built-in dispute resolution.
 
+## Installation and Initialization
+
+### Installing the Package
+
+```bash
+npm install kleros-escrow-data-service
+# or
+yarn add kleros-escrow-data-service
+```
+
+### Initializing the Client
+
+The library provides a `createKlerosEscrowClient` function to initialize all services and actions:
+
+```typescript
+import { createKlerosEscrowClient } from "kleros-escrow-data-service";
+import { ethers } from "ethers";
+
+// Configuration for the Kleros Escrow client
+const config = {
+  // Contract addresses
+  arbitrableAddress: "0x...", // MultipleArbitrableTransaction contract address
+  arbitratorAddress: "0x...", // Arbitrator contract address (e.g., KlerosLiquid)
+
+  // Network configuration
+  networkId: 1, // 1 for Ethereum Mainnet, 5 for Goerli, etc.
+
+  // Optional: IPFS gateway for retrieving evidence and meta-evidence
+  ipfsGateway: "https://cdn.kleros.io", // Default IPFS gateway
+};
+
+// For read-only operations
+const readProvider = new ethers.providers.JsonRpcProvider(
+  "https://rpc.ankr.com/eth"
+);
+const readOnlyClient = createKlerosEscrowClient(config, readProvider);
+
+// For transactions (using browser wallet)
+if (window.ethereum) {
+  const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+  const signerClient = createKlerosEscrowClient(config, signer);
+
+  // Use signerClient for transactions
+  // Use readOnlyClient for queries and event listening
+}
+```
+
+### Connecting Wallet for Transactions
+
+When you need to perform transactions, ensure the wallet is connected:
+
+```typescript
+async function connectWalletAndGetClient() {
+  if (window.ethereum) {
+    // Request account access
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    // Get signer
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+
+    // Create client with signer
+    return createKlerosEscrowClient(config, signer);
+  }
+  throw new Error("No Ethereum wallet detected");
+}
+
+// Usage
+try {
+  const client = await connectWalletAndGetClient();
+  // Now use client for transactions
+} catch (error) {
+  console.error("Failed to connect wallet:", error);
+}
+```
+
+### Configuration Options
+
+| Option              | Description                                             | Required |
+| ------------------- | ------------------------------------------------------- | -------- |
+| `arbitrableAddress` | Address of the MultipleArbitrableTransaction contract   | Yes      |
+| `arbitratorAddress` | Address of the arbitrator contract                      | Yes      |
+| `networkId`         | Ethereum network ID (1 for Mainnet, 5 for Goerli, etc.) | Yes      |
+| `ipfsGateway`       | IPFS gateway URL (defaults to "https://cdn.kleros.io")  | No       |
+
 ## User Flows
 
 ### 1. Creating an Escrow Transaction

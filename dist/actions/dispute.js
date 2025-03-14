@@ -2,20 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DisputeActions = void 0;
 const ethers_1 = require("ethers");
+const BaseService_1 = require("../base/BaseService");
 /**
  * Service for dispute-related actions in the Kleros Escrow contract
  */
-class DisputeActions {
+class DisputeActions extends BaseService_1.BaseService {
     /**
      * Creates a new DisputeActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config, signerOrProvider) {
-        this.provider = signerOrProvider instanceof ethers_1.ethers.Signer
-            ? signerOrProvider.provider
-            : signerOrProvider;
-        this.contract = new ethers_1.ethers.Contract(config.multipleArbitrableTransaction.address, config.multipleArbitrableTransaction.abi, signerOrProvider);
+    constructor(config, signer) {
+        super(config, signer);
     }
     /**
      * Pays arbitration fee as the sender to raise a dispute
@@ -23,7 +21,8 @@ class DisputeActions {
      * @returns The transaction response
      */
     async payArbitrationFeeBySender(params) {
-        const tx = await this.contract.payArbitrationFeeBySender(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        this.ensureCanWrite();
+        const tx = await this.escrowContract.payArbitrationFeeBySender(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
         return tx;
     }
     /**
@@ -32,7 +31,8 @@ class DisputeActions {
      * @returns The transaction response
      */
     async payArbitrationFeeByReceiver(params) {
-        const tx = await this.contract.payArbitrationFeeByReceiver(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        this.ensureCanWrite();
+        const tx = await this.escrowContract.payArbitrationFeeByReceiver(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
         return tx;
     }
     /**
@@ -41,7 +41,10 @@ class DisputeActions {
      * @returns The transaction response
      */
     async appeal(params) {
-        const tx = await this.contract.appeal(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        this.ensureCanWrite();
+        const tx = await this.escrowContract.appeal(params.transactionId, {
+            value: ethers_1.ethers.utils.parseEther(params.value),
+        });
         return tx;
     }
     /**
@@ -50,7 +53,7 @@ class DisputeActions {
      * @returns The estimated gas
      */
     async estimateGasForPayArbitrationFeeBySender(params) {
-        const gasEstimate = await this.contract.estimateGas.payArbitrationFeeBySender(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        const gasEstimate = await this.escrowContract.estimateGas.payArbitrationFeeBySender(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
         return gasEstimate;
     }
     /**
@@ -59,7 +62,7 @@ class DisputeActions {
      * @returns The estimated gas
      */
     async estimateGasForPayArbitrationFeeByReceiver(params) {
-        const gasEstimate = await this.contract.estimateGas.payArbitrationFeeByReceiver(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        const gasEstimate = await this.escrowContract.estimateGas.payArbitrationFeeByReceiver(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
         return gasEstimate;
     }
     /**
@@ -68,7 +71,7 @@ class DisputeActions {
      * @returns The estimated gas
      */
     async estimateGasForAppeal(params) {
-        const gasEstimate = await this.contract.estimateGas.appeal(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
+        const gasEstimate = await this.escrowContract.estimateGas.appeal(params.transactionId, { value: ethers_1.ethers.utils.parseEther(params.value) });
         return gasEstimate;
     }
 }

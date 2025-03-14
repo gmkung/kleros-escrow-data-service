@@ -1,22 +1,19 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EvidenceActions = void 0;
-const ethers_1 = require("ethers");
 const ipfs_1 = require("../services/ipfs");
+const BaseService_1 = require("../base/BaseService");
 /**
  * Service for evidence-related actions in the Kleros Escrow contract
  */
-class EvidenceActions {
+class EvidenceActions extends BaseService_1.BaseService {
     /**
      * Creates a new EvidenceActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config, signerOrProvider) {
-        this.provider = signerOrProvider instanceof ethers_1.ethers.Signer
-            ? signerOrProvider.provider
-            : signerOrProvider;
-        this.contract = new ethers_1.ethers.Contract(config.multipleArbitrableTransaction.address, config.multipleArbitrableTransaction.abi, signerOrProvider);
+    constructor(config, signer) {
+        super(config, signer);
     }
     /**
      * Submits evidence for a dispute
@@ -24,7 +21,8 @@ class EvidenceActions {
      * @returns The transaction response
      */
     async submitEvidence(params) {
-        const tx = await this.contract.submitEvidence(params.transactionId, params.evidence);
+        this.ensureCanWrite();
+        const tx = await this.escrowContract.submitEvidence(params.transactionId, params.evidence);
         return tx;
     }
     /**
@@ -33,7 +31,7 @@ class EvidenceActions {
      * @returns The estimated gas
      */
     async estimateGasForSubmitEvidence(params) {
-        const gasEstimate = await this.contract.estimateGas.submitEvidence(params.transactionId, params.evidence);
+        const gasEstimate = await this.escrowContract.estimateGas.submitEvidence(params.transactionId, params.evidence);
         return gasEstimate;
     }
     /**

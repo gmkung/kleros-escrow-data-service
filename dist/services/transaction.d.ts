@@ -1,16 +1,17 @@
-import { Transaction } from '../types/transaction';
-import { KlerosEscrowConfig } from '../types/config';
+import { ethers } from "ethers";
+import { Transaction } from "../types/transaction";
+import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 /**
  * Service for reading transaction data from the Kleros Escrow contract
  */
-export declare class TransactionService {
-    private provider;
-    private contract;
+export declare class TransactionService extends BaseService {
     /**
      * Creates a new TransactionService instance
      * @param config The Kleros Escrow configuration
+     * @param provider Optional provider for read operations
      */
-    constructor(config: KlerosEscrowConfig);
+    constructor(config: KlerosEscrowConfig, provider?: ethers.providers.Provider);
     /**
      * Gets a transaction by its ID
      * @param transactionId The ID of the transaction to fetch
@@ -28,13 +29,6 @@ export declare class TransactionService {
      * @returns The count of transactions
      */
     getTransactionCount: () => Promise<number>;
-    /**
-     * Gets the amount paid by a party in a transaction
-     * @param transactionId The ID of the transaction
-     * @param party The address of the party
-     * @returns The amount paid in wei as a string
-     */
-    getAmountPaid: (transactionId: string, party: string) => Promise<string>;
     /**
      * Checks if a transaction can be executed (timeout has passed)
      * @param transactionId The ID of the transaction to check

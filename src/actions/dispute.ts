@@ -1,32 +1,22 @@
-import { ethers } from 'ethers';
-import { ArbitrationFeePaymentParams, AppealParams } from '../types/dispute';
-import { KlerosEscrowConfig } from '../types/config';
+import { ethers } from "ethers";
+import { ArbitrationFeePaymentParams, AppealParams } from "../types/dispute";
+import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 
 /**
  * Service for dispute-related actions in the Kleros Escrow contract
  */
-export class DisputeActions {
-  private provider: ethers.providers.Provider;
-  private contract: ethers.Contract;
-
+export class DisputeActions extends BaseService {
   /**
    * Creates a new DisputeActions instance
    * @param config The Kleros Escrow configuration
-   * @param signerOrProvider A signer or provider
+   * @param signer A signer for write operations
    */
   constructor(
     config: KlerosEscrowConfig,
-    signerOrProvider: ethers.Signer | ethers.providers.Provider
+    signer: ethers.Signer
   ) {
-    this.provider = signerOrProvider instanceof ethers.Signer 
-      ? signerOrProvider.provider! 
-      : signerOrProvider;
-    
-    this.contract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
-      signerOrProvider
-    );
+    super(config, signer);
   }
 
   /**
@@ -34,12 +24,16 @@ export class DisputeActions {
    * @param params Parameters for paying the arbitration fee
    * @returns The transaction response
    */
-  async payArbitrationFeeBySender(params: ArbitrationFeePaymentParams): Promise<ethers.providers.TransactionResponse> {
-    const tx = await this.contract.payArbitrationFeeBySender(
+  async payArbitrationFeeBySender(
+    params: ArbitrationFeePaymentParams
+  ): Promise<ethers.providers.TransactionResponse> {
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.payArbitrationFeeBySender(
       params.transactionId,
       { value: ethers.utils.parseEther(params.value) }
     );
-    
+
     return tx;
   }
 
@@ -48,12 +42,16 @@ export class DisputeActions {
    * @param params Parameters for paying the arbitration fee
    * @returns The transaction response
    */
-  async payArbitrationFeeByReceiver(params: ArbitrationFeePaymentParams): Promise<ethers.providers.TransactionResponse> {
-    const tx = await this.contract.payArbitrationFeeByReceiver(
+  async payArbitrationFeeByReceiver(
+    params: ArbitrationFeePaymentParams
+  ): Promise<ethers.providers.TransactionResponse> {
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.payArbitrationFeeByReceiver(
       params.transactionId,
       { value: ethers.utils.parseEther(params.value) }
     );
-    
+
     return tx;
   }
 
@@ -62,12 +60,15 @@ export class DisputeActions {
    * @param params Parameters for appealing
    * @returns The transaction response
    */
-  async appeal(params: AppealParams): Promise<ethers.providers.TransactionResponse> {
-    const tx = await this.contract.appeal(
-      params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
-    );
+  async appeal(
+    params: AppealParams
+  ): Promise<ethers.providers.TransactionResponse> {
+    this.ensureCanWrite();
     
+    const tx = await this.escrowContract.appeal(params.transactionId, {
+      value: ethers.utils.parseEther(params.value),
+    });
+
     return tx;
   }
 
@@ -76,12 +77,15 @@ export class DisputeActions {
    * @param params Parameters for paying the arbitration fee
    * @returns The estimated gas
    */
-  async estimateGasForPayArbitrationFeeBySender(params: ArbitrationFeePaymentParams): Promise<ethers.BigNumber> {
-    const gasEstimate = await this.contract.estimateGas.payArbitrationFeeBySender(
-      params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
-    );
-    
+  async estimateGasForPayArbitrationFeeBySender(
+    params: ArbitrationFeePaymentParams
+  ): Promise<ethers.BigNumber> {
+    const gasEstimate =
+      await this.escrowContract.estimateGas.payArbitrationFeeBySender(
+        params.transactionId,
+        { value: ethers.utils.parseEther(params.value) }
+      );
+
     return gasEstimate;
   }
 
@@ -90,12 +94,15 @@ export class DisputeActions {
    * @param params Parameters for paying the arbitration fee
    * @returns The estimated gas
    */
-  async estimateGasForPayArbitrationFeeByReceiver(params: ArbitrationFeePaymentParams): Promise<ethers.BigNumber> {
-    const gasEstimate = await this.contract.estimateGas.payArbitrationFeeByReceiver(
-      params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
-    );
-    
+  async estimateGasForPayArbitrationFeeByReceiver(
+    params: ArbitrationFeePaymentParams
+  ): Promise<ethers.BigNumber> {
+    const gasEstimate =
+      await this.escrowContract.estimateGas.payArbitrationFeeByReceiver(
+        params.transactionId,
+        { value: ethers.utils.parseEther(params.value) }
+      );
+
     return gasEstimate;
   }
 
@@ -105,11 +112,11 @@ export class DisputeActions {
    * @returns The estimated gas
    */
   async estimateGasForAppeal(params: AppealParams): Promise<ethers.BigNumber> {
-    const gasEstimate = await this.contract.estimateGas.appeal(
+    const gasEstimate = await this.escrowContract.estimateGas.appeal(
       params.transactionId,
       { value: ethers.utils.parseEther(params.value) }
     );
-    
+
     return gasEstimate;
   }
-} 
+}

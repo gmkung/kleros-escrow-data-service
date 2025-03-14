@@ -1,17 +1,17 @@
-import { Dispute } from '../types/dispute';
-import { KlerosEscrowConfig } from '../types/config';
+import { ethers } from "ethers";
+import { Dispute } from "../types/dispute";
+import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 /**
  * Service for reading dispute data from the Kleros Escrow contract
  */
-export declare class DisputeService {
-    private provider;
-    private escrowContract;
-    private arbitratorContract;
+export declare class DisputeService extends BaseService {
     /**
      * Creates a new DisputeService instance
      * @param config The Kleros Escrow configuration
+     * @param provider Optional provider for read operations
      */
-    constructor(config: KlerosEscrowConfig);
+    constructor(config: KlerosEscrowConfig, provider?: ethers.providers.Provider);
     /**
      * Gets dispute information for a transaction
      * @param transactionId The ID of the transaction

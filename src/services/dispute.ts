@@ -1,38 +1,22 @@
-import { ethers } from 'ethers';
-import { Dispute, DisputeStatus, Ruling } from '../types/dispute';
-import { KlerosEscrowConfig } from '../types/config';
+import { ethers } from "ethers";
+import { Dispute, DisputeStatus, Ruling } from "../types/dispute";
+import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 
 /**
  * Service for reading dispute data from the Kleros Escrow contract
  */
-export class DisputeService {
-  private provider: ethers.providers.Provider;
-  private escrowContract: ethers.Contract;
-  private arbitratorContract: ethers.Contract | null = null;
-
+export class DisputeService extends BaseService {
   /**
    * Creates a new DisputeService instance
    * @param config The Kleros Escrow configuration
+   * @param provider Optional provider for read operations
    */
-  constructor(config: KlerosEscrowConfig) {
-    this.provider = new ethers.providers.JsonRpcProvider(
-      config.provider.url,
-      config.provider.networkId
-    );
-    
-    this.escrowContract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
-      this.provider
-    );
-    
-    if (config.arbitrator) {
-      this.arbitratorContract = new ethers.Contract(
-        config.arbitrator.address,
-        config.arbitrator.abi,
-        this.provider
-      );
-    }
+  constructor(
+    config: KlerosEscrowConfig,
+    provider?: ethers.providers.Provider
+  ) {
+    super(config, provider);
   }
 
   /**
@@ -42,47 +26,59 @@ export class DisputeService {
    */
   async getDispute(transactionId: string): Promise<Dispute | null> {
     const tx = await this.escrowContract.transactions(transactionId);
-    
+
     if (tx.disputeId.toNumber() === 0) {
       return null;
     }
-    
+
     const disputeId = tx.disputeId.toNumber();
-    const arbitrator = await this.escrowContract.arbitrator();
-    
+    const arbitrator = await this.getArbitratorAddress();
+    const arbitratorExtraData = await this.getArbitratorExtraData();
+
     let status = DisputeStatus.Waiting;
     let ruling = undefined;
     let appealPeriodStart = undefined;
     let appealPeriodEnd = undefined;
-    
-    // If we have access to the arbitrator contract, get more details
-    if (this.arbitratorContract) {
-      const disputeStatus = await this.arbitratorContract.disputeStatus(disputeId);
+
+    // Initialize arbitrator contract if needed
+    const minimalAbi = [
+      "function disputeStatus(uint) view returns (uint)",
+      "function currentRuling(uint) view returns (uint)",
+      "function appealPeriod(uint) view returns (uint, uint)",
+    ];
+
+    try {
+      const arbitratorContract = await this.getArbitratorContract(minimalAbi);
+
+      const disputeStatus = await arbitratorContract.disputeStatus(disputeId);
       status = this.mapDisputeStatus(disputeStatus);
-      
-      const currentRuling = await this.arbitratorContract.currentRuling(disputeId);
+
+      const currentRuling = await arbitratorContract.currentRuling(disputeId);
       ruling = this.mapRuling(currentRuling);
-      
+
       // Try to get appeal period if available
       try {
-        const appealPeriod = await this.arbitratorContract.appealPeriod(disputeId);
+        const appealPeriod = await arbitratorContract.appealPeriod(disputeId);
         appealPeriodStart = appealPeriod[0].toNumber();
         appealPeriodEnd = appealPeriod[1].toNumber();
       } catch (e) {
         // Appeal period might not be available for all arbitrators
       }
+    } catch (e) {
+      // If any call fails, we'll use the default values
+      console.warn("Could not get complete dispute details:", e);
     }
-    
+
     return {
       id: disputeId,
       transactionId,
       status,
       ruling,
       arbitrator,
-      arbitratorExtraData: await this.escrowContract.arbitratorExtraData(),
+      arbitratorExtraData,
       evidenceGroupId: transactionId, // In this contract, evidenceGroupId is the same as transactionId
       appealPeriodStart,
-      appealPeriodEnd
+      appealPeriodEnd,
     };
   }
 
@@ -91,24 +87,14 @@ export class DisputeService {
    * @returns The arbitration cost in wei as a string
    */
   async getArbitrationCost(): Promise<string> {
-    const arbitrator = await this.escrowContract.arbitrator();
-    const arbitratorExtraData = await this.escrowContract.arbitratorExtraData();
-    
-    // Create a contract instance for the arbitrator if we don't have one
-    if (!this.arbitratorContract) {
-      // This is a simplified approach - in a real implementation, you'd need the ABI
-      const arbitratorAbi = ["function arbitrationCost(bytes) view returns (uint)"];
-      const tempArbitratorContract = new ethers.Contract(
-        arbitrator,
-        arbitratorAbi,
-        this.provider
-      );
-      
-      const cost = await tempArbitratorContract.arbitrationCost(arbitratorExtraData);
-      return cost.toString();
-    }
-    
-    const cost = await this.arbitratorContract.arbitrationCost(arbitratorExtraData);
+    const arbitratorExtraData = await this.getArbitratorExtraData();
+
+    const arbitratorAbi = [
+      "function arbitrationCost(bytes) view returns (uint)",
+    ];
+    const arbitratorContract = await this.getArbitratorContract(arbitratorAbi);
+
+    const cost = await arbitratorContract.arbitrationCost(arbitratorExtraData);
     return cost.toString();
   }
 
@@ -118,12 +104,18 @@ export class DisputeService {
    * @returns The appeal cost in wei as a string
    */
   async getAppealCost(disputeId: number): Promise<string> {
-    if (!this.arbitratorContract) {
-      throw new Error("Arbitrator contract not configured");
-    }
-    
-    const arbitratorExtraData = await this.escrowContract.arbitratorExtraData();
-    const cost = await this.arbitratorContract.appealCost(disputeId, arbitratorExtraData);
+    const arbitratorExtraData = await this.getArbitratorExtraData();
+
+    const arbitratorAbi = [
+      "function arbitrationCost(bytes) view returns (uint)",
+      "function appealCost(uint, bytes) view returns (uint)",
+    ];
+    const arbitratorContract = await this.getArbitratorContract(arbitratorAbi);
+
+    const cost = await arbitratorContract.appealCost(
+      disputeId,
+      arbitratorExtraData
+    );
     return cost.toString();
   }
 
@@ -136,9 +128,9 @@ export class DisputeService {
     const statusMap: Record<number, DisputeStatus> = {
       0: DisputeStatus.Waiting,
       1: DisputeStatus.Appealable,
-      2: DisputeStatus.Solved
+      2: DisputeStatus.Solved,
     };
-    
+
     return statusMap[status] || DisputeStatus.Waiting;
   }
 
@@ -151,9 +143,9 @@ export class DisputeService {
     const rulingMap: Record<number, Ruling> = {
       0: Ruling.RefusedToRule,
       1: Ruling.SenderWins,
-      2: Ruling.ReceiverWins
+      2: Ruling.ReceiverWins,
     };
-    
+
     return rulingMap[ruling] || Ruling.RefusedToRule;
   }
 
@@ -165,4 +157,4 @@ export class DisputeService {
     const timeout = await this.escrowContract.feeTimeout();
     return timeout.toNumber();
   }
-} 
+}

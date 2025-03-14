@@ -2,16 +2,18 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransactionActions = void 0;
 const ethers_1 = require("ethers");
+const BaseService_1 = require("../base/BaseService");
 /**
  * Service for writing transaction data to the Kleros Escrow contract
  */
-class TransactionActions {
+class TransactionActions extends BaseService_1.BaseService {
     /**
      * Creates a new TransactionActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config, signerOrProvider) {
+    constructor(config, signer) {
+        super(config, signer);
         /**
          * Creates a new escrow transaction
          * @param params Parameters for creating the transaction
@@ -19,7 +21,8 @@ class TransactionActions {
          */
         this.createTransaction = async (params) => {
             var _a, _b;
-            const tx = await this.contract.createTransaction(params.timeoutPayment, params.receiver, params.metaEvidence, { value: ethers_1.ethers.utils.parseEther(params.value) });
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.createTransaction(params.timeoutPayment, params.receiver, params.metaEvidence, { value: ethers_1.ethers.utils.parseEther(params.value) });
             // Wait for the transaction to be mined
             const receipt = await tx.wait();
             // Find the transaction ID from the event logs
@@ -36,7 +39,8 @@ class TransactionActions {
          * @returns The transaction response
          */
         this.pay = async (params) => {
-            const tx = await this.contract.pay(params.transactionId, ethers_1.ethers.utils.parseEther(params.amount));
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.pay(params.transactionId, ethers_1.ethers.utils.parseEther(params.amount));
             return tx;
         };
         /**
@@ -45,7 +49,8 @@ class TransactionActions {
          * @returns The transaction response
          */
         this.reimburse = async (params) => {
-            const tx = await this.contract.reimburse(params.transactionId, ethers_1.ethers.utils.parseEther(params.amount));
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.reimburse(params.transactionId, ethers_1.ethers.utils.parseEther(params.amount));
             return tx;
         };
         /**
@@ -54,7 +59,8 @@ class TransactionActions {
          * @returns The transaction response
          */
         this.executeTransaction = async (transactionId) => {
-            const tx = await this.contract.executeTransaction(transactionId);
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.executeTransaction(transactionId);
             return tx;
         };
         /**
@@ -63,7 +69,8 @@ class TransactionActions {
          * @returns The transaction response
          */
         this.timeOutBySender = async (transactionId) => {
-            const tx = await this.contract.timeOutBySender(transactionId);
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.timeOutBySender(transactionId);
             return tx;
         };
         /**
@@ -72,7 +79,8 @@ class TransactionActions {
          * @returns The transaction response
          */
         this.timeOutByReceiver = async (transactionId) => {
-            const tx = await this.contract.timeOutByReceiver(transactionId);
+            this.ensureCanWrite();
+            const tx = await this.escrowContract.timeOutByReceiver(transactionId);
             return tx;
         };
         /**
@@ -81,14 +89,9 @@ class TransactionActions {
          * @returns The estimated gas
          */
         this.estimateGasForCreateTransaction = async (params) => {
-            const gasEstimate = await this.contract.estimateGas.createTransaction(params.timeoutPayment, params.receiver, params.metaEvidence, { value: ethers_1.ethers.utils.parseEther(params.value) });
+            const gasEstimate = await this.escrowContract.estimateGas.createTransaction(params.timeoutPayment, params.receiver, params.metaEvidence, { value: ethers_1.ethers.utils.parseEther(params.value) });
             return gasEstimate;
         };
-        this.provider =
-            signerOrProvider instanceof ethers_1.ethers.Signer
-                ? signerOrProvider.provider
-                : signerOrProvider;
-        this.contract = new ethers_1.ethers.Contract(config.multipleArbitrableTransaction.address, config.multipleArbitrableTransaction.abi, signerOrProvider);
     }
 }
 exports.TransactionActions = TransactionActions;

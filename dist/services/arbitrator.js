@@ -1,45 +1,43 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ArbitratorService = void 0;
-const ethers_1 = require("ethers");
+const BaseService_1 = require("../base/BaseService");
 /**
  * Service for reading arbitrator data
  */
-class ArbitratorService {
+class ArbitratorService extends BaseService_1.BaseService {
     /**
      * Creates a new ArbitratorService instance
      * @param config The Kleros Escrow configuration
+     * @param provider Optional provider for read operations
      */
-    constructor(config) {
-        this.arbitratorContract = null;
-        this.provider = new ethers_1.ethers.providers.JsonRpcProvider(config.provider.url, config.provider.networkId);
-        this.escrowContract = new ethers_1.ethers.Contract(config.multipleArbitrableTransaction.address, config.multipleArbitrableTransaction.abi, this.provider);
-        if (config.arbitrator) {
-            this.arbitratorContract = new ethers_1.ethers.Contract(config.arbitrator.address, config.arbitrator.abi, this.provider);
-        }
+    constructor(config, provider) {
+        super(config, provider);
     }
     /**
      * Gets information about the arbitrator
      * @returns The arbitrator information
      */
     async getArbitrator() {
-        const arbitratorAddress = await this.escrowContract.arbitrator();
-        const arbitratorExtraData = await this.escrowContract.arbitratorExtraData();
-        // Create a minimal arbitrator interface if we don't have the full contract
-        if (!this.arbitratorContract) {
-            const minimalAbi = [
-                "function arbitrationCost(bytes) view returns (uint)",
-                "function appealCost(uint, bytes) view returns (uint)",
-            ];
-            this.arbitratorContract = new ethers_1.ethers.Contract(arbitratorAddress, minimalAbi, this.provider);
-        }
-        // Get the arbitration cost
-        const arbitrationCost = await this.arbitratorContract.arbitrationCost(arbitratorExtraData);
+        // Get the arbitrator address and extra data directly
+        const address = await this.getArbitratorAddress();
+        const extraData = await this.getArbitratorExtraData();
+        // Create or reuse the arbitrator contract
+        const minimalAbi = [
+            "function arbitrationCost(bytes) view returns (uint)",
+            "function appealCost(uint, bytes) view returns (uint)",
+            "function getSubcourt(uint) view returns (uint)",
+            "function disputes(uint) view returns (uint, uint, uint, uint, uint, uint, uint, uint, uint, uint, address, address, bytes, uint)",
+            "function currentRuling(uint) view returns (uint)",
+            "function disputeStatus(uint) view returns (uint)",
+        ];
+        const arbitratorContract = await this.getArbitratorContract(minimalAbi);
+        // Get arbitration costs
+        const arbitrationCost = await arbitratorContract.arbitrationCost(extraData);
         // For appeal cost, we need a dispute ID, but we don't have one here
-        // In a real implementation, you might want to handle this differently
         const appealCost = "0"; // Placeholder
         return {
-            address: arbitratorAddress,
+            address,
             arbitrationCost: arbitrationCost.toString(),
             appealCost,
         };
@@ -51,20 +49,6 @@ class ArbitratorService {
     async getFeeTimeout() {
         const timeout = await this.escrowContract.feeTimeout();
         return timeout.toNumber();
-    }
-    /**
-     * Gets the arbitrator address
-     * @returns The address of the arbitrator contract
-     */
-    async getArbitratorAddress() {
-        return await this.escrowContract.arbitrator();
-    }
-    /**
-     * Gets the arbitrator extra data
-     * @returns The extra data used when creating disputes
-     */
-    async getArbitratorExtraData() {
-        return await this.escrowContract.arbitratorExtraData();
     }
     /**
      * Gets the subcourt ID used for disputes

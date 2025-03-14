@@ -1,18 +1,17 @@
 import { ethers } from "ethers";
 import { CreateTransactionParams, PaymentParams } from "../types/transaction";
 import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 /**
  * Service for writing transaction data to the Kleros Escrow contract
  */
-export declare class TransactionActions {
-    private provider;
-    private contract;
+export declare class TransactionActions extends BaseService {
     /**
      * Creates a new TransactionActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config: KlerosEscrowConfig, signerOrProvider: ethers.Signer | ethers.providers.Provider);
+    constructor(config: KlerosEscrowConfig, signer: ethers.Signer);
     /**
      * Creates a new escrow transaction
      * @param params Parameters for creating the transaction

@@ -1,24 +1,26 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransactionService = void 0;
-const ethers_1 = require("ethers");
 const transaction_1 = require("../types/transaction");
+const BaseService_1 = require("../base/BaseService");
 /**
  * Service for reading transaction data from the Kleros Escrow contract
  */
-class TransactionService {
+class TransactionService extends BaseService_1.BaseService {
     /**
      * Creates a new TransactionService instance
      * @param config The Kleros Escrow configuration
+     * @param provider Optional provider for read operations
      */
-    constructor(config) {
+    constructor(config, provider) {
+        super(config, provider);
         /**
          * Gets a transaction by its ID
          * @param transactionId The ID of the transaction to fetch
          * @returns The transaction data
          */
         this.getTransaction = async (transactionId) => {
-            const tx = await this.contract.transactions(transactionId);
+            const tx = await this.escrowContract.transactions(transactionId);
             return {
                 id: transactionId,
                 sender: tx.sender,
@@ -30,7 +32,7 @@ class TransactionService {
                 createdAt: 0, // Not directly available from contract, would need to get from events
                 disputeId: tx.disputeId.toNumber() > 0 ? tx.disputeId.toNumber() : undefined,
                 senderFee: tx.senderFee.toString(),
-                receiverFee: tx.receiverFee.toString()
+                receiverFee: tx.receiverFee.toString(),
             };
         };
         /**
@@ -39,7 +41,7 @@ class TransactionService {
          * @returns Array of transactions where the address is sender or receiver
          */
         this.getTransactionsByAddress = async (address) => {
-            const transactionIds = await this.contract.getTransactionIDsByAddress(address);
+            const transactionIds = await this.escrowContract.getTransactionIDsByAddress(address);
             const transactions = [];
             for (const id of transactionIds) {
                 const tx = await this.getTransaction(id.toString());
@@ -52,18 +54,8 @@ class TransactionService {
          * @returns The count of transactions
          */
         this.getTransactionCount = async () => {
-            const count = await this.contract.getCountTransactions();
+            const count = await this.escrowContract.getCountTransactions();
             return count.toNumber();
-        };
-        /**
-         * Gets the amount paid by a party in a transaction
-         * @param transactionId The ID of the transaction
-         * @param party The address of the party
-         * @returns The amount paid in wei as a string
-         */
-        this.getAmountPaid = async (transactionId, party) => {
-            const amount = await this.contract.amountPaid(transactionId, party);
-            return amount.toString();
         };
         /**
          * Checks if a transaction can be executed (timeout has passed)
@@ -84,12 +76,12 @@ class TransactionService {
         this.canTimeOut = async (transactionId) => {
             const tx = await this.getTransaction(transactionId);
             const currentTime = Math.floor(Date.now() / 1000);
-            const feeTimeout = await this.contract.feeTimeout();
+            const feeTimeout = await this.escrowContract.feeTimeout();
             return {
                 canSenderTimeOut: tx.status === transaction_1.TransactionStatus.WaitingReceiver &&
                     currentTime - tx.lastInteraction >= feeTimeout,
                 canReceiverTimeOut: tx.status === transaction_1.TransactionStatus.WaitingSender &&
-                    currentTime - tx.lastInteraction >= feeTimeout
+                    currentTime - tx.lastInteraction >= feeTimeout,
             };
         };
         /**
@@ -103,12 +95,10 @@ class TransactionService {
                 1: transaction_1.TransactionStatus.WaitingSender,
                 2: transaction_1.TransactionStatus.WaitingReceiver,
                 3: transaction_1.TransactionStatus.DisputeCreated,
-                4: transaction_1.TransactionStatus.Resolved
+                4: transaction_1.TransactionStatus.Resolved,
             };
             return statusMap[status] || transaction_1.TransactionStatus.NoDispute;
         };
-        this.provider = new ethers_1.ethers.providers.JsonRpcProvider(config.provider.url, config.provider.networkId);
-        this.contract = new ethers_1.ethers.Contract(config.multipleArbitrableTransaction.address, config.multipleArbitrableTransaction.abi, this.provider);
     }
 }
 exports.TransactionService = TransactionService;

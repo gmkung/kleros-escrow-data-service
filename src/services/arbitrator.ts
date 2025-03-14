@@ -1,38 +1,22 @@
 import { ethers } from "ethers";
 import { Arbitrator as ArbitratorType } from "../types/arbitrator";
 import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 
 /**
  * Service for reading arbitrator data
  */
-export class ArbitratorService {
-  private provider: ethers.providers.Provider;
-  private escrowContract: ethers.Contract;
-  private arbitratorContract: ethers.Contract | null = null;
-
+export class ArbitratorService extends BaseService {
   /**
    * Creates a new ArbitratorService instance
    * @param config The Kleros Escrow configuration
+   * @param provider Optional provider for read operations
    */
-  constructor(config: KlerosEscrowConfig) {
-    this.provider = new ethers.providers.JsonRpcProvider(
-      config.provider.url,
-      config.provider.networkId
-    );
-
-    this.escrowContract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
-      this.provider
-    );
-
-    if (config.arbitrator) {
-      this.arbitratorContract = new ethers.Contract(
-        config.arbitrator.address,
-        config.arbitrator.abi,
-        this.provider
-      );
-    }
+  constructor(
+    config: KlerosEscrowConfig,
+    provider?: ethers.providers.Provider
+  ) {
+    super(config, provider);
   }
 
   /**
@@ -40,33 +24,30 @@ export class ArbitratorService {
    * @returns The arbitrator information
    */
   async getArbitrator(): Promise<ArbitratorType> {
-    const arbitratorAddress = await this.escrowContract.arbitrator();
-    const arbitratorExtraData = await this.escrowContract.arbitratorExtraData();
+    // Get the arbitrator address and extra data directly
+    const address = await this.getArbitratorAddress();
+    const extraData = await this.getArbitratorExtraData();
 
-    // Create a minimal arbitrator interface if we don't have the full contract
-    if (!this.arbitratorContract) {
-      const minimalAbi = [
-        "function arbitrationCost(bytes) view returns (uint)",
-        "function appealCost(uint, bytes) view returns (uint)",
-      ];
+    // Create or reuse the arbitrator contract
+    const minimalAbi = [
+      "function arbitrationCost(bytes) view returns (uint)",
+      "function appealCost(uint, bytes) view returns (uint)",
+      "function getSubcourt(uint) view returns (uint)",
+      "function disputes(uint) view returns (uint, uint, uint, uint, uint, uint, uint, uint, uint, uint, address, address, bytes, uint)",
+      "function currentRuling(uint) view returns (uint)",
+      "function disputeStatus(uint) view returns (uint)",
+    ];
 
-      this.arbitratorContract = new ethers.Contract(
-        arbitratorAddress,
-        minimalAbi,
-        this.provider
-      );
-    }
+    const arbitratorContract = await this.getArbitratorContract(minimalAbi);
 
-    // Get the arbitration cost
-    const arbitrationCost =
-      await this.arbitratorContract.arbitrationCost(arbitratorExtraData);
+    // Get arbitration costs
+    const arbitrationCost = await arbitratorContract.arbitrationCost(extraData);
 
     // For appeal cost, we need a dispute ID, but we don't have one here
-    // In a real implementation, you might want to handle this differently
     const appealCost = "0"; // Placeholder
 
     return {
-      address: arbitratorAddress,
+      address,
       arbitrationCost: arbitrationCost.toString(),
       appealCost,
     };
@@ -79,22 +60,6 @@ export class ArbitratorService {
   async getFeeTimeout(): Promise<number> {
     const timeout = await this.escrowContract.feeTimeout();
     return timeout.toNumber();
-  }
-
-  /**
-   * Gets the arbitrator address
-   * @returns The address of the arbitrator contract
-   */
-  async getArbitratorAddress(): Promise<string> {
-    return await this.escrowContract.arbitrator();
-  }
-
-  /**
-   * Gets the arbitrator extra data
-   * @returns The extra data used when creating disputes
-   */
-  async getArbitratorExtraData(): Promise<string> {
-    return await this.escrowContract.arbitratorExtraData();
   }
 
   /**

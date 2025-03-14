@@ -1,18 +1,17 @@
 import { ethers } from 'ethers';
 import { EvidenceSubmissionParams } from '../types/dispute';
 import { KlerosEscrowConfig } from '../types/config';
+import { BaseService } from '../base/BaseService';
 /**
  * Service for evidence-related actions in the Kleros Escrow contract
  */
-export declare class EvidenceActions {
-    private provider;
-    private contract;
+export declare class EvidenceActions extends BaseService {
     /**
      * Creates a new EvidenceActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config: KlerosEscrowConfig, signerOrProvider: ethers.Signer | ethers.providers.Provider);
+    constructor(config: KlerosEscrowConfig, signer: ethers.Signer);
     /**
      * Submits evidence for a dispute
      * @param params Parameters for submitting evidence

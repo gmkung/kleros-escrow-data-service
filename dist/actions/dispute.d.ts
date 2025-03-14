@@ -1,18 +1,17 @@
-import { ethers } from 'ethers';
-import { ArbitrationFeePaymentParams, AppealParams } from '../types/dispute';
-import { KlerosEscrowConfig } from '../types/config';
+import { ethers } from "ethers";
+import { ArbitrationFeePaymentParams, AppealParams } from "../types/dispute";
+import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 /**
  * Service for dispute-related actions in the Kleros Escrow contract
  */
-export declare class DisputeActions {
-    private provider;
-    private contract;
+export declare class DisputeActions extends BaseService {
     /**
      * Creates a new DisputeActions instance
      * @param config The Kleros Escrow configuration
-     * @param signerOrProvider A signer or provider
+     * @param signer A signer for write operations
      */
-    constructor(config: KlerosEscrowConfig, signerOrProvider: ethers.Signer | ethers.providers.Provider);
+    constructor(config: KlerosEscrowConfig, signer: ethers.Signer);
     /**
      * Pays arbitration fee as the sender to raise a dispute
      * @param params Parameters for paying the arbitration fee

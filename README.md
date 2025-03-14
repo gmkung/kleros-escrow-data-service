@@ -2,6 +2,66 @@
 
 This guide provides detailed instructions for developing the Kleros Escrow interface using the Kleros Escrow Data Service. Each section outlines a specific screen with the required functions, data structures, and user interactions.
 
+## Client Initialization
+
+### Installing the Package
+
+```bash
+npm install kleros-escrow-data-service
+# or
+yarn add kleros-escrow-data-service
+```
+
+### Initializing the Client
+
+Before implementing any of the screens, you need to initialize the Kleros Escrow client:
+
+```typescript
+import { createKlerosEscrowClient } from 'kleros-escrow-data-service';
+import { ethers } from 'ethers';
+
+// Configuration for the Kleros Escrow client
+const config = {
+  // Contract addresses
+  arbitrableAddress: "0x...", // MultipleArbitrableTransaction contract address
+  arbitratorAddress: "0x...", // Arbitrator contract address (e.g., KlerosLiquid)
+  
+  // Network configuration
+  networkId: 1, // 1 for Ethereum Mainnet, 5 for Goerli, etc.
+  
+  // Optional: IPFS gateway for retrieving evidence and meta-evidence
+  ipfsGateway: "https://cdn.kleros.io" // Default IPFS gateway
+};
+
+// For read-only operations (using Ankr's public RPC)
+const readProvider = new ethers.providers.JsonRpcProvider('https://rpc.ankr.com/eth');
+const readOnlyClient = createKlerosEscrowClient(config, readProvider);
+
+// For transactions (using browser wallet)
+if (window.ethereum) {
+  const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+  const signerClient = createKlerosEscrowClient(config, signer);
+  
+  // Use signerClient for transactions
+  // Use readOnlyClient for queries and event listening
+}
+
+// Function to connect wallet when needed
+async function connectWalletAndGetClient() {
+  if (window.ethereum) {
+    // Request account access
+    await window.ethereum.request({ method: 'eth_requestAccounts' });
+    
+    // Get signer
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    
+    // Create client with signer
+    return createKlerosEscrowClient(config, signer);
+  }
+  throw new Error("No Ethereum wallet detected");
+}
+
 ## Prompt 1. Dashboard Screen
 
 ### Overview

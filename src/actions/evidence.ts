@@ -2,32 +2,22 @@ import { ethers } from 'ethers';
 import { EvidenceSubmissionParams } from '../types/dispute';
 import { KlerosEscrowConfig } from '../types/config';
 import { IPFSService } from '../services/ipfs';
+import { BaseService } from '../base/BaseService';
 
 /**
  * Service for evidence-related actions in the Kleros Escrow contract
  */
-export class EvidenceActions {
-  private provider: ethers.providers.Provider;
-  private contract: ethers.Contract;
-
+export class EvidenceActions extends BaseService {
   /**
    * Creates a new EvidenceActions instance
    * @param config The Kleros Escrow configuration
-   * @param signerOrProvider A signer or provider
+   * @param signer A signer for write operations
    */
   constructor(
     config: KlerosEscrowConfig,
-    signerOrProvider: ethers.Signer | ethers.providers.Provider
+    signer: ethers.Signer
   ) {
-    this.provider = signerOrProvider instanceof ethers.Signer 
-      ? signerOrProvider.provider! 
-      : signerOrProvider;
-    
-    this.contract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
-      signerOrProvider
-    );
+    super(config, signer);
   }
 
   /**
@@ -36,7 +26,9 @@ export class EvidenceActions {
    * @returns The transaction response
    */
   async submitEvidence(params: EvidenceSubmissionParams): Promise<ethers.providers.TransactionResponse> {
-    const tx = await this.contract.submitEvidence(
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.submitEvidence(
       params.transactionId,
       params.evidence
     );
@@ -50,7 +42,7 @@ export class EvidenceActions {
    * @returns The estimated gas
    */
   async estimateGasForSubmitEvidence(params: EvidenceSubmissionParams): Promise<ethers.BigNumber> {
-    const gasEstimate = await this.contract.estimateGas.submitEvidence(
+    const gasEstimate = await this.escrowContract.estimateGas.submitEvidence(
       params.transactionId,
       params.evidence
     );

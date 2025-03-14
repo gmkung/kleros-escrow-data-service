@@ -1,33 +1,22 @@
 import { ethers } from "ethers";
 import { CreateTransactionParams, PaymentParams } from "../types/transaction";
 import { KlerosEscrowConfig } from "../types/config";
+import { BaseService } from "../base/BaseService";
 
 /**
  * Service for writing transaction data to the Kleros Escrow contract
  */
-export class TransactionActions {
-  private provider: ethers.providers.Provider;
-  private contract: ethers.Contract;
-
+export class TransactionActions extends BaseService {
   /**
    * Creates a new TransactionActions instance
    * @param config The Kleros Escrow configuration
-   * @param signerOrProvider A signer or provider
+   * @param signer A signer for write operations
    */
   constructor(
     config: KlerosEscrowConfig,
-    signerOrProvider: ethers.Signer | ethers.providers.Provider
+    signer: ethers.Signer
   ) {
-    this.provider =
-      signerOrProvider instanceof ethers.Signer
-        ? signerOrProvider.provider!
-        : signerOrProvider;
-
-    this.contract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
-      signerOrProvider
-    );
+    super(config, signer);
   }
 
   /**
@@ -39,7 +28,9 @@ export class TransactionActions {
     transactionResponse: ethers.providers.TransactionResponse;
     transactionId: string;
   }> => {
-    const tx = await this.contract.createTransaction(
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.createTransaction(
       params.timeoutPayment,
       params.receiver,
       params.metaEvidence,
@@ -67,7 +58,9 @@ export class TransactionActions {
   pay = async (
     params: PaymentParams
   ): Promise<ethers.providers.TransactionResponse> => {
-    const tx = await this.contract.pay(
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.pay(
       params.transactionId,
       ethers.utils.parseEther(params.amount)
     );
@@ -83,7 +76,9 @@ export class TransactionActions {
   reimburse = async (
     params: PaymentParams
   ): Promise<ethers.providers.TransactionResponse> => {
-    const tx = await this.contract.reimburse(
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.reimburse(
       params.transactionId,
       ethers.utils.parseEther(params.amount)
     );
@@ -99,7 +94,9 @@ export class TransactionActions {
   executeTransaction = async (
     transactionId: string
   ): Promise<ethers.providers.TransactionResponse> => {
-    const tx = await this.contract.executeTransaction(transactionId);
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.executeTransaction(transactionId);
     return tx;
   }
 
@@ -111,7 +108,9 @@ export class TransactionActions {
   timeOutBySender = async (
     transactionId: string
   ): Promise<ethers.providers.TransactionResponse> => {
-    const tx = await this.contract.timeOutBySender(transactionId);
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.timeOutBySender(transactionId);
     return tx;
   }
 
@@ -123,7 +122,9 @@ export class TransactionActions {
   timeOutByReceiver = async (
     transactionId: string
   ): Promise<ethers.providers.TransactionResponse> => {
-    const tx = await this.contract.timeOutByReceiver(transactionId);
+    this.ensureCanWrite();
+    
+    const tx = await this.escrowContract.timeOutByReceiver(transactionId);
     return tx;
   }
 
@@ -135,7 +136,7 @@ export class TransactionActions {
   estimateGasForCreateTransaction = async (
     params: CreateTransactionParams
   ): Promise<ethers.BigNumber> => {
-    const gasEstimate = await this.contract.estimateGas.createTransaction(
+    const gasEstimate = await this.escrowContract.estimateGas.createTransaction(
       params.timeoutPayment,
       params.receiver,
       params.metaEvidence,
