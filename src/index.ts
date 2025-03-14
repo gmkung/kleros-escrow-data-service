@@ -1,62 +1,27 @@
-/**
- * Types for Kleros Escrow data service
- */
-export interface EscrowTransaction {
-  id: string;
-  sender: string;
-  receiver: string;
-  amount: string;
-  status: EscrowStatus;
-  timeoutPayment: number;
-  disputeId?: number;
-  createdAt: number;
-}
-
-export enum EscrowStatus {
-  Created = 'Created',
-  Ongoing = 'Ongoing',
-  Resolved = 'Resolved',
-  Disputed = 'Disputed'
-}
-
-/**
- * Fetches an escrow transaction by ID
- * @param id The transaction ID to fetch
- * @returns The escrow transaction data
- */
-export async function getEscrowById(id: string): Promise<EscrowTransaction | null> {
-  // In a real implementation, this would query an API or blockchain
-  // This is a placeholder implementation
-  console.log(`Fetching escrow with ID: ${id}`);
-  return null;
-}
-
-/**
- * Fetches all escrow transactions for a specific address
- * @param address The Ethereum address to query
- * @returns Array of escrow transactions
- */
-export async function getEscrowsByAddress(address: string): Promise<EscrowTransaction[]> {
-  // In a real implementation, this would query an API or blockchain
-  // This is a placeholder implementation
-  console.log(`Fetching escrows for address: ${address}`);
-  return [];
-}
-
 // Export all types
-export * from './types';
+export * from "./types";
 
 // Export all services (read functions)
-export * from './services';
+export * from "./services";
 
 // Export all actions (write functions)
-export * from './actions';
+export * from "./actions";
+
+// Export event listeners
+export * from "./listeners";
 
 // Export a convenience function to create a complete Kleros Escrow client
-import { ethers } from 'ethers';
-import { KlerosEscrowConfig } from './types/config';
-import { TransactionService, DisputeService, ArbitratorService, EventService } from './services';
-import { TransactionActions, DisputeActions, EvidenceActions } from './actions';
+import { ethers } from "ethers";
+import { KlerosEscrowConfig } from "./types/config";
+import {
+  TransactionService,
+  DisputeService,
+  ArbitratorService,
+  EventService,
+} from "./services";
+import { TransactionActions, DisputeActions, EvidenceActions } from "./actions";
+import { EventListeners } from "./listeners";
+import { IPFSService } from "./services/ipfs";
 
 /**
  * Creates a complete Kleros Escrow client with all services and actions
@@ -73,26 +38,34 @@ export function createKlerosEscrowClient(
   const disputeService = new DisputeService(config);
   const arbitratorService = new ArbitratorService(config);
   const eventService = new EventService(config);
-  
+  const ipfsService = new IPFSService(config.ipfsGateway);
+
   // Create write actions
   const transactionActions = new TransactionActions(config, signerOrProvider);
   const disputeActions = new DisputeActions(config, signerOrProvider);
   const evidenceActions = new EvidenceActions(config, signerOrProvider);
-  
+
+  // Create event listeners
+  const eventListeners = new EventListeners(config);
+
   return {
     // Read services
     services: {
       transaction: transactionService,
       dispute: disputeService,
       arbitrator: arbitratorService,
-      event: eventService
+      event: eventService,
+      ipfs: ipfsService,
     },
-    
+
     // Write actions
     actions: {
       transaction: transactionActions,
       dispute: disputeActions,
-      evidence: evidenceActions
-    }
+      evidence: evidenceActions,
+    },
+
+    // Event listeners
+    listeners: eventListeners,
   };
-} 
+}

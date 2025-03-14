@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { EvidenceSubmissionParams } from '../types/dispute';
 import { KlerosEscrowConfig } from '../types/config';
+import { IPFSService } from '../services/ipfs';
 
 /**
  * Service for evidence-related actions in the Kleros Escrow contract
@@ -58,7 +59,7 @@ export class EvidenceActions {
   }
 
   /**
-   * Uploads evidence to IPFS if an IPFS gateway is configured
+   * Uploads evidence to IPFS
    * @param config The Kleros Escrow configuration
    * @param evidence The evidence data to upload
    * @returns The IPFS URI of the uploaded evidence
@@ -76,10 +77,7 @@ export class EvidenceActions {
       throw new Error("IPFS gateway not configured");
     }
     
-    // This is a placeholder for actual IPFS upload logic
-    // In a real implementation, you would use a library like ipfs-http-client
-    
-    // For now, we'll just return a mock URI
-    return `ipfs://QmXyz.../${evidence.name}`;
+    const ipfsService = new IPFSService(config.ipfsGateway);
+    return ipfsService.uploadEvidence(evidence);
   }
 } 

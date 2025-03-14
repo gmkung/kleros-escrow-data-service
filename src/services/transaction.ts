@@ -31,7 +31,7 @@ export class TransactionService {
    * @param transactionId The ID of the transaction to fetch
    * @returns The transaction data
    */
-  async getTransaction(transactionId: string): Promise<Transaction> {
+  getTransaction = async (transactionId: string): Promise<Transaction> => {
     const tx = await this.contract.transactions(transactionId);
     
     return {
@@ -54,7 +54,7 @@ export class TransactionService {
    * @param address The address to get transactions for
    * @returns Array of transactions where the address is sender or receiver
    */
-  async getTransactionsByAddress(address: string): Promise<Transaction[]> {
+  getTransactionsByAddress = async (address: string): Promise<Transaction[]> => {
     const transactionIds = await this.contract.getTransactionIDsByAddress(address);
     
     const transactions: Transaction[] = [];
@@ -70,7 +70,7 @@ export class TransactionService {
    * Gets the total number of transactions in the contract
    * @returns The count of transactions
    */
-  async getTransactionCount(): Promise<number> {
+  getTransactionCount = async (): Promise<number> => {
     const count = await this.contract.getCountTransactions();
     return count.toNumber();
   }
@@ -81,7 +81,7 @@ export class TransactionService {
    * @param party The address of the party
    * @returns The amount paid in wei as a string
    */
-  async getAmountPaid(transactionId: string, party: string): Promise<string> {
+  getAmountPaid = async (transactionId: string, party: string): Promise<string> => {
     const amount = await this.contract.amountPaid(transactionId, party);
     return amount.toString();
   }
@@ -91,7 +91,7 @@ export class TransactionService {
    * @param transactionId The ID of the transaction to check
    * @returns True if the transaction can be executed
    */
-  async canExecuteTransaction(transactionId: string): Promise<boolean> {
+  canExecuteTransaction = async (transactionId: string): Promise<boolean> => {
     const tx = await this.getTransaction(transactionId);
     const currentTime = Math.floor(Date.now() / 1000);
     
@@ -106,10 +106,10 @@ export class TransactionService {
    * @param transactionId The ID of the transaction to check
    * @returns Object indicating which party can be timed out, if any
    */
-  async canTimeOut(transactionId: string): Promise<{
+  canTimeOut = async (transactionId: string): Promise<{
     canSenderTimeOut: boolean;
     canReceiverTimeOut: boolean;
-  }> {
+  }> => {
     const tx = await this.getTransaction(transactionId);
     const currentTime = Math.floor(Date.now() / 1000);
     const feeTimeout = await this.contract.feeTimeout();
@@ -129,7 +129,7 @@ export class TransactionService {
    * @param status The numeric status from the contract
    * @returns The corresponding TransactionStatus enum value
    */
-  private mapStatus(status: number): TransactionStatus {
+  private mapStatus = (status: number): TransactionStatus => {
     const statusMap: Record<number, TransactionStatus> = {
       0: TransactionStatus.NoDispute,
       1: TransactionStatus.WaitingSender,

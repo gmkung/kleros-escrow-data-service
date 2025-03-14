@@ -35,10 +35,10 @@ export class TransactionActions {
    * @param params Parameters for creating the transaction
    * @returns The transaction response and the transaction ID
    */
-  async createTransaction(params: CreateTransactionParams): Promise<{
+  createTransaction = async (params: CreateTransactionParams): Promise<{
     transactionResponse: ethers.providers.TransactionResponse;
     transactionId: string;
-  }> {
+  }> => {
     const tx = await this.contract.createTransaction(
       params.timeoutPayment,
       params.receiver,
@@ -64,14 +64,14 @@ export class TransactionActions {
    * @param params Parameters for the payment
    * @returns The transaction response
    */
-  async pay(
+  pay = async (
     params: PaymentParams
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     const tx = await this.contract.pay(
       params.transactionId,
       ethers.utils.parseEther(params.amount)
     );
-
+    
     return tx;
   }
 
@@ -80,14 +80,14 @@ export class TransactionActions {
    * @param params Parameters for the reimbursement
    * @returns The transaction response
    */
-  async reimburse(
+  reimburse = async (
     params: PaymentParams
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     const tx = await this.contract.reimburse(
       params.transactionId,
       ethers.utils.parseEther(params.amount)
     );
-
+    
     return tx;
   }
 
@@ -96,9 +96,9 @@ export class TransactionActions {
    * @param transactionId The ID of the transaction to execute
    * @returns The transaction response
    */
-  async executeTransaction(
+  executeTransaction = async (
     transactionId: string
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     const tx = await this.contract.executeTransaction(transactionId);
     return tx;
   }
@@ -108,9 +108,9 @@ export class TransactionActions {
    * @param transactionId The ID of the transaction
    * @returns The transaction response
    */
-  async timeOutBySender(
+  timeOutBySender = async (
     transactionId: string
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     const tx = await this.contract.timeOutBySender(transactionId);
     return tx;
   }
@@ -120,9 +120,9 @@ export class TransactionActions {
    * @param transactionId The ID of the transaction
    * @returns The transaction response
    */
-  async timeOutByReceiver(
+  timeOutByReceiver = async (
     transactionId: string
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     const tx = await this.contract.timeOutByReceiver(transactionId);
     return tx;
   }
@@ -132,9 +132,9 @@ export class TransactionActions {
    * @param params Parameters for creating the transaction
    * @returns The estimated gas
    */
-  async estimateGasForCreateTransaction(
+  estimateGasForCreateTransaction = async (
     params: CreateTransactionParams
-  ): Promise<ethers.BigNumber> {
+  ): Promise<ethers.BigNumber> => {
     const gasEstimate = await this.contract.estimateGas.createTransaction(
       params.timeoutPayment,
       params.receiver,
