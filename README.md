@@ -16,7 +16,7 @@ yarn add kleros-escrow-data-service
 
 Before implementing any of the screens, you need to initialize the Kleros Escrow client:
 
-```typescript
+````typescript
 import { createKlerosEscrowClient } from 'kleros-escrow-data-service';
 import { ethers } from 'ethers';
 
@@ -25,10 +25,10 @@ const config = {
   // Contract addresses
   arbitrableAddress: "0x...", // MultipleArbitrableTransaction contract address
   arbitratorAddress: "0x...", // Arbitrator contract address (e.g., KlerosLiquid)
-  
+
   // Network configuration
   networkId: 1, // 1 for Ethereum Mainnet, 5 for Goerli, etc.
-  
+
   // Optional: IPFS gateway for retrieving evidence and meta-evidence
   ipfsGateway: "https://cdn.kleros.io" // Default IPFS gateway
 };
@@ -41,7 +41,7 @@ const readOnlyClient = createKlerosEscrowClient(config, readProvider);
 if (window.ethereum) {
   const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
   const signerClient = createKlerosEscrowClient(config, signer);
-  
+
   // Use signerClient for transactions
   // Use readOnlyClient for queries and event listening
 }
@@ -51,11 +51,11 @@ async function connectWalletAndGetClient() {
   if (window.ethereum) {
     // Request account access
     await window.ethereum.request({ method: 'eth_requestAccounts' });
-    
+
     // Get signer
     const provider = new ethers.providers.Web3Provider(window.ethereum);
     const signer = provider.getSigner();
-    
+
     // Create client with signer
     return createKlerosEscrowClient(config, signer);
   }
@@ -109,96 +109,227 @@ const count = await klerosClient.services.transaction.getTransactionCount();
 // This can be used for pagination or displaying stats
 ```
 
-### Event Listeners for Real-time Updates
+### Event Monitoring for Real-time Updates
 
-#### Listen for New Transactions (MetaEvidence Events)
+The library provides methods to retrieve events from the blockchain. To implement real-time updates, you'll need to poll for new events periodically.
+
+#### Retrieving Transaction Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForMetaEvidence({
-  // Optional filter - if not provided, listens for all transactions
-  // transactionId: "123"
-});
+const events = await klerosClient.services.event.getEventsForTransaction(transactionId);
 
 // Input:
-// - Optional filter object with transactionId
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
 
 // Output:
-// - EventEmitter that emits "MetaEvidence" events
-
-// Event handler
-emitter.on("MetaEvidence", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the new transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   metaEvidenceId: string,      // Same as transactionId
-  //   evidence: string             // IPFS URI to the meta-evidence JSON
-  // }
-  // Use this to add new transactions to the dashboard in real-time
-});
+// - events: BaseEvent[] - Array of all events related to the transaction, sorted by block number
+// This includes payment events, dispute events, evidence events, etc.
+// Use this to build a timeline of transaction activity
 ```
 
-#### Listen for Payment Events
+#### Retrieving MetaEvidence Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForPayment({
-  // Optional filters
-  // transactionId: "123",
-  // party: "0xUserAddress"
-});
+const metaEvidenceEvents = await klerosClient.services.event.getMetaEvidenceEvents(transactionId);
+const metaEvidenceURI = metaEvidenceEvents[0]?.evidence;
+const metaEvidenceData = await klerosClient.services.ipfs.fetchFromIPFS(metaEvidenceURI);
 
 // Input:
-// - Optional filter object with transactionId and/or party address
+// - transactionId: string - The ID of the transaction
 
 // Output:
-// - EventEmitter that emits "Payment" events
-
-// Event handler
-emitter.on("Payment", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   party: string,               // Address of the party who made/received the payment
-  //   amount: string               // Amount paid in wei
-  // }
-  // Use this to update transaction amounts in real-time
-});
+// - metaEvidenceData: object - The parsed JSON data from IPFS containing:
+//   {
+//     title: string,               // Title of the transaction
+//     description: string,         // Detailed description
+//     category: string,            // Category (e.g., "Services", "Goods")
+//     question: string,            // The question for arbitrators
+//     rulingOptions: {             // Options for ruling
+//       titles: string[],          // Titles of ruling options
+//       descriptions: string[]     // Descriptions of ruling options
+//     },
+//     fileURI?: string,            // Optional attached file
+//     fileTypeExtension?: string   // File type if applicable
+//   }
+// Use this to display the original terms of the transaction
 ```
 
-#### Listen for Dispute Events
+#### Retrieving Payment Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForDispute();
+const paymentEvents = await klerosClient.services.event.getPaymentEvents(transactionId);
 
 // Input:
-// - Optional filter object with arbitrator and/or disputeId
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Dispute" events
+// - paymentEvents: PaymentEvent[] - Array of payment events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   party: string,               // Address of the party who made/received the payment
+//   amount: string               // Amount paid in wei
+// }
+// Use this to update transaction amount in real-time
+```
 
-// Event handler
-emitter.on("Dispute", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   disputeId: number,           // ID of the created dispute
-  //   arbitrator: string,          // Address of the arbitrator contract
-  //   metaEvidenceId: string,      // Same as transactionId
-  //   evidenceGroupId: string      // ID of the evidence group
-  // }
-  // Use this to update transaction status when disputes are created
-});
+#### Retrieving Dispute Events
+
+```typescript
+// Function to call
+const disputeEvents = await klerosClient.services.event.getDisputeEvents(transactionId);
+
+// Input:
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
+
+// Output:
+// - disputeEvents: DisputeEvent[] - Array of dispute events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   disputeId: number,           // ID of the created dispute
+//   arbitrator: string,          // Address of the arbitrator contract
+//   metaEvidenceId: string,      // Same as transactionId
+//   evidenceGroupId: string      // ID of the evidence group
+// }
+// Use this to update the UI when a dispute is created
+```
+
+#### Retrieving Evidence Events
+
+```typescript
+// Function to call
+const evidenceEvents = await klerosClient.services.event.getEvidenceEvents(transactionId);
+
+// Input:
+// - transactionId: string - The ID of the transaction (same as evidenceGroupId)
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
+
+// Output:
+// - evidenceEvents: EvidenceEvent[] - Array of evidence events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   party: string,               // Address of the party who submitted evidence
+//   evidence: string,            // IPFS URI to the evidence
+//   arbitrator: string,          // Address of the arbitrator
+//   evidenceGroupId: string      // ID of the evidence group
+// }
+// Use this to update the evidence list in real-time
+```
+
+#### Retrieving Ruling Events
+
+```typescript
+// Function to call
+const rulingEvents = await klerosClient.services.event.getRulingEvents(transactionId);
+
+// Input:
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
+
+// Output:
+// - rulingEvents: RulingEvent[] - Array of ruling events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   disputeId: number,           // ID of the dispute
+//   ruling: number,              // The ruling given (0: Refused, 1: Sender wins, 2: Receiver wins)
+//   arbitrator: string           // Address of the arbitrator
+// }
+// Use this to update the UI when a ruling is given
+```
+
+#### Implementing Transaction Event Polling
+
+```typescript
+// Example of polling for specific transaction events
+function monitorTransactionEvents(transactionId, pollingInterval = 15000) {
+  let lastCheckedBlock = 0;
+  
+  const intervalId = setInterval(async () => {
+    try {
+      // Get all new events since the last checked block
+      const newEvents = await klerosClient.services.event.getEventsForTransaction(
+        transactionId, 
+        lastCheckedBlock
+      );
+      
+      if (newEvents.length > 0) {
+        // Update the UI based on event types
+        newEvents.forEach(event => {
+          // Update last checked block
+          lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
+          
+          // Handle different event types
+          if ('amount' in event && 'party' in event) {
+            // Payment event
+            updatePaymentDisplay(event);
+          } else if ('disputeId' in event && !('ruling' in event)) {
+            // Dispute creation event
+            updateDisputeStatus(event);
+          } else if ('evidence' in event) {
+            // Evidence submission event
+            addNewEvidence(event);
+          } else if ('ruling' in event) {
+            // Ruling event
+            updateRulingDisplay(event);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error polling for transaction events:", error);
+    }
+  }, pollingInterval);
+  
+  // Return a function to stop polling
+  return () => clearInterval(intervalId);
+}
+
+// Example UI update functions
+function updatePaymentDisplay(event) {
+  console.log(`Payment of ${event.amount} made by ${event.party}`);
+  // Update UI elements
+}
+
+function updateDisputeStatus(event) {
+  console.log(`Dispute ${event.disputeId} created for transaction ${event.transactionId}`);
+  // Update UI elements
+}
+
+function addNewEvidence(event) {
+  console.log(`New evidence submitted by ${event.party}`);
+  // Update evidence list
+}
+
+function updateRulingDisplay(event) {
+  console.log(`Ruling ${event.ruling} given for dispute ${event.disputeId}`);
+  // Update UI elements
+}
+
+// Start monitoring
+const stopMonitoring = monitorTransactionEvents("123");
+
+// Later, when navigating away
+// stopMonitoring();
 ```
 
 ### Create Transaction Modal
@@ -372,7 +503,8 @@ Create a detailed view for a specific escrow transaction. This screen should dis
 
 ```typescript
 // Function to call
-const transaction = await klerosClient.services.transaction.getTransaction(transactionId);
+const transaction =
+  await klerosClient.services.transaction.getTransaction(transactionId);
 
 // Input:
 // - transactionId: string - The ID of the transaction to fetch
@@ -415,7 +547,8 @@ const amountPaid = await klerosClient.services.transaction.getAmountPaid(
 
 ```typescript
 // Function to call
-const canExecute = await klerosClient.services.transaction.canExecuteTransaction(transactionId);
+const canExecute =
+  await klerosClient.services.transaction.canExecuteTransaction(transactionId);
 
 // Input:
 // - transactionId: string - The ID of the transaction to check
@@ -429,7 +562,8 @@ const canExecute = await klerosClient.services.transaction.canExecuteTransaction
 
 ```typescript
 // Function to call
-const timeoutStatus = await klerosClient.services.transaction.canTimeOut(transactionId);
+const timeoutStatus =
+  await klerosClient.services.transaction.canTimeOut(transactionId);
 
 // Input:
 // - transactionId: string - The ID of the transaction to check
@@ -511,120 +645,183 @@ const dispute = await klerosClient.services.dispute.getDispute(transactionId);
 // Use this to display dispute information and enable dispute-related actions
 ```
 
-### Event Listeners for Real-time Updates
+### Event Monitoring for Transaction Updates
 
-#### Listen for Payment Events
+To monitor transaction events in real-time, you can retrieve specific event types and implement polling:
+
+#### Retrieving Payment Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForPayment({
-  transactionId: transactionId
-});
+const paymentEvents = await klerosClient.services.event.getPaymentEvents(transactionId);
 
 // Input:
-// - transactionId: string - The ID of the transaction to monitor
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Payment" events
-
-// Event handler
-emitter.on("Payment", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   party: string,               // Address of the party who made/received the payment
-  //   amount: string               // Amount paid in wei
-  // }
-  
-  // Use this to update transaction amount in real-time
-});
+// - paymentEvents: PaymentEvent[] - Array of payment events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   party: string,               // Address of the party who made/received the payment
+//   amount: string               // Amount paid in wei
+// }
+// Use this to update transaction amount in real-time
 ```
 
-#### Listen for Dispute Events
+#### Retrieving Dispute Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForDispute({
-  transactionId: transactionId
-});
+const disputeEvents = await klerosClient.services.event.getDisputeEvents(transactionId);
 
 // Input:
-// - transactionId: string - The ID of the transaction to monitor
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Dispute" events
-
-// Event handler
-emitter.on("Dispute", (event) => {
-  // event structure as described earlier
-  // Use this to update the UI when a dispute is created
-});
+// - disputeEvents: DisputeEvent[] - Array of dispute events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   disputeId: number,           // ID of the created dispute
+//   arbitrator: string,          // Address of the arbitrator contract
+//   metaEvidenceId: string,      // Same as transactionId
+//   evidenceGroupId: string      // ID of the evidence group
+// }
+// Use this to update the UI when a dispute is created
 ```
 
-#### Listen for Evidence Events
+#### Retrieving Evidence Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForEvidence({
-  evidenceGroupId: transactionId
-});
+const evidenceEvents = await klerosClient.services.event.getEvidenceEvents(transactionId);
 
 // Input:
-// - evidenceGroupId: string - The ID of the evidence group (same as transactionId)
+// - transactionId: string - The ID of the transaction (same as evidenceGroupId)
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Evidence" events
-
-// Event handler
-emitter.on("Evidence", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   party: string,               // Address of the party who submitted evidence
-  //   evidence: string,            // IPFS URI to the evidence
-  //   arbitrator: string,          // Address of the arbitrator
-  //   evidenceGroupId: string      // ID of the evidence group
-  // }
-  
-  // Use this to update the evidence list in real-time
-});
+// - evidenceEvents: EvidenceEvent[] - Array of evidence events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   party: string,               // Address of the party who submitted evidence
+//   evidence: string,            // IPFS URI to the evidence
+//   arbitrator: string,          // Address of the arbitrator
+//   evidenceGroupId: string      // ID of the evidence group
+// }
+// Use this to update the evidence list in real-time
 ```
 
-#### Listen for Ruling Events
+#### Retrieving Ruling Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForRuling({
-  disputeId: transaction.disputeId
-});
+const rulingEvents = await klerosClient.services.event.getRulingEvents(transactionId);
 
 // Input:
-// - disputeId: number - The ID of the dispute to monitor
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Ruling" events
+// - rulingEvents: RulingEvent[] - Array of ruling events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   disputeId: number,           // ID of the dispute
+//   ruling: number,              // The ruling given (0: Refused, 1: Sender wins, 2: Receiver wins)
+//   arbitrator: string           // Address of the arbitrator
+// }
+// Use this to update the UI when a ruling is given
+```
 
-// Event handler
-emitter.on("Ruling", (event) => {
-  // event structure:
-  // {
-  //   transactionId: string,       // ID of the transaction
-  //   blockNumber: number,         // Block number when the event was emitted
-  //   transactionHash: string,     // Hash of the transaction that emitted the event
-  //   timestamp: number,           // Timestamp when the event was emitted
-  //   disputeId: number,           // ID of the dispute
-  //   ruling: number,              // The ruling given (0: Refused, 1: Sender wins, 2: Receiver wins)
-  //   arbitrator: string           // Address of the arbitrator
-  // }
+#### Implementing Transaction Event Polling
+
+```typescript
+// Example of polling for specific transaction events
+function monitorTransactionEvents(transactionId, pollingInterval = 15000) {
+  let lastCheckedBlock = 0;
   
-  // Use this to update the UI when a ruling is given
-});
+  const intervalId = setInterval(async () => {
+    try {
+      // Get all new events since the last checked block
+      const newEvents = await klerosClient.services.event.getEventsForTransaction(
+        transactionId, 
+        lastCheckedBlock
+      );
+      
+      if (newEvents.length > 0) {
+        // Update the UI based on event types
+        newEvents.forEach(event => {
+          // Update last checked block
+          lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
+          
+          // Handle different event types
+          if ('amount' in event && 'party' in event) {
+            // Payment event
+            updatePaymentDisplay(event);
+          } else if ('disputeId' in event && !('ruling' in event)) {
+            // Dispute creation event
+            updateDisputeStatus(event);
+          } else if ('evidence' in event) {
+            // Evidence submission event
+            addNewEvidence(event);
+          } else if ('ruling' in event) {
+            // Ruling event
+            updateRulingDisplay(event);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error polling for transaction events:", error);
+    }
+  }, pollingInterval);
+  
+  // Return a function to stop polling
+  return () => clearInterval(intervalId);
+}
+
+// Example UI update functions
+function updatePaymentDisplay(event) {
+  console.log(`Payment of ${event.amount} made by ${event.party}`);
+  // Update UI elements
+}
+
+function updateDisputeStatus(event) {
+  console.log(`Dispute ${event.disputeId} created for transaction ${event.transactionId}`);
+  // Update UI elements
+}
+
+function addNewEvidence(event) {
+  console.log(`New evidence submitted by ${event.party}`);
+  // Update evidence list
+}
+
+function updateRulingDisplay(event) {
+  console.log(`Ruling ${event.ruling} given for dispute ${event.disputeId}`);
+  // Update UI elements
+}
+
+// Start monitoring
+const stopMonitoring = monitorTransactionEvents("123");
+
+// Later, when navigating away
+// stopMonitoring();
 ```
 
 ### Action Functions
@@ -635,7 +832,7 @@ emitter.on("Ruling", (event) => {
 // Function to call
 await klerosClient.actions.transaction.pay({
   transactionId: transactionId,
-  amount: amountToRelease
+  amount: amountToRelease,
 });
 
 // Input:
@@ -653,7 +850,7 @@ await klerosClient.actions.transaction.pay({
 // Function to call
 await klerosClient.actions.transaction.reimburse({
   transactionId: transactionId,
-  amount: amountToReimburse
+  amount: amountToReimburse,
 });
 
 // Input:
@@ -685,13 +882,13 @@ await klerosClient.actions.transaction.executeTransaction(transactionId);
 // Function to call - for sender
 await klerosClient.actions.dispute.payArbitrationFeeBySender({
   transactionId: transactionId,
-  value: arbitrationCost
+  value: arbitrationCost,
 });
 
 // Function to call - for receiver
 await klerosClient.actions.dispute.payArbitrationFeeByReceiver({
   transactionId: transactionId,
-  value: arbitrationCost
+  value: arbitrationCost,
 });
 
 // Input:
@@ -711,12 +908,12 @@ const evidenceURI = await klerosClient.services.ipfs.uploadEvidence({
   name: "Evidence Title",
   description: "Detailed description of the evidence",
   fileURI: "/ipfs/QmFileHash", // Optional
-  fileTypeExtension: "pdf"      // Optional
+  fileTypeExtension: "pdf", // Optional
 });
 
 await klerosClient.actions.evidence.submitEvidence({
   transactionId: transactionId,
-  evidence: evidenceURI
+  evidence: evidenceURI,
 });
 
 // Input:
@@ -749,11 +946,13 @@ await klerosClient.actions.transaction.timeOutBySender(transactionId);
 
 ```typescript
 // Function to call
-const appealCost = await klerosClient.services.dispute.getAppealCost(transaction.disputeId);
+const appealCost = await klerosClient.services.dispute.getAppealCost(
+  transaction.disputeId
+);
 
 await klerosClient.actions.dispute.appeal({
   transactionId: transactionId,
-  value: appealCost
+  value: appealCost,
 });
 
 // Input:
@@ -768,18 +967,21 @@ await klerosClient.actions.dispute.appeal({
 ### UI Components to Include
 
 1. **Transaction Header**
+
    - Transaction ID
    - Status badge (color-coded)
    - Creation date
    - Timeout countdown (if applicable)
 
 2. **Transaction Details Panel**
+
    - Sender and receiver addresses (with ENS resolution if available)
    - Current amount in escrow
    - Transaction terms from meta-evidence
    - Attached files (if any)
 
 3. **Action Panel**
+
    - Context-aware buttons based on:
      - Transaction status
      - User role (sender/receiver)
@@ -787,11 +989,13 @@ await klerosClient.actions.dispute.appeal({
    - Payment/reimbursement form (when applicable)
 
 4. **Evidence Panel**
+
    - List of submitted evidence from both parties
    - Evidence submission form
    - Preview of evidence contents
 
 5. **Dispute Panel** (when a dispute exists)
+
    - Dispute status
    - Arbitration fee information
    - Ruling (if available)
@@ -806,6 +1010,7 @@ await klerosClient.actions.dispute.appeal({
 ### User Interactions
 
 1. **Sender Actions**
+
    - Pay/release funds to receiver
    - Raise a dispute (pay arbitration fee)
    - Submit evidence
@@ -813,6 +1018,7 @@ await klerosClient.actions.dispute.appeal({
    - Appeal ruling
 
 2. **Receiver Actions**
+
    - Reimburse sender
    - Raise a dispute (pay arbitration fee)
    - Submit evidence
@@ -827,16 +1033,19 @@ await klerosClient.actions.dispute.appeal({
 ### Conditional Rendering Logic
 
 1. **Payment Actions**
+
    - Show to sender only
    - Only in NoDispute status
    - Disabled if amount is 0
 
 2. **Reimbursement Actions**
+
    - Show to receiver only
    - Only in NoDispute status
    - Disabled if amount is 0
 
 3. **Dispute Actions**
+
    - Show "Raise Dispute" when in NoDispute status
    - Show "Pay Arbitration Fee" when in WaitingSender/WaitingReceiver status (to the appropriate party)
    - Show "Submit Evidence" when dispute exists and not resolved
@@ -849,10 +1058,12 @@ await klerosClient.actions.dispute.appeal({
 ### Error Handling
 
 1. **Insufficient Funds**
+
    - Check user balance before actions
    - Show helpful error messages
 
 2. **Transaction Failures**
+
    - Provide clear error messages
    - Offer retry options
 
@@ -863,6 +1074,7 @@ await klerosClient.actions.dispute.appeal({
 ### Responsive Design Considerations
 
 1. **Desktop View**
+
    - Side-by-side panels for transaction details and actions
    - Tabbed interface for evidence, dispute, and timeline sections
 
@@ -907,7 +1119,8 @@ const dispute = await klerosClient.services.dispute.getDispute(transactionId);
 
 ```typescript
 // Function to call
-const transaction = await klerosClient.services.transaction.getTransaction(transactionId);
+const transaction =
+  await klerosClient.services.transaction.getTransaction(transactionId);
 
 // Input:
 // - transactionId: string - The ID of the transaction
@@ -937,7 +1150,9 @@ const arbitrator = await klerosClient.services.arbitrator.getArbitrator();
 
 ```typescript
 // Function to call
-const appealCost = await klerosClient.services.dispute.getAppealCost(dispute.id);
+const appealCost = await klerosClient.services.dispute.getAppealCost(
+  dispute.id
+);
 
 // Input:
 // - dispute.id: number - The ID of the dispute
@@ -951,7 +1166,8 @@ const appealCost = await klerosClient.services.dispute.getAppealCost(dispute.id)
 
 ```typescript
 // Function to call
-const evidenceEvents = await klerosClient.services.event.getEvidenceEvents(transactionId);
+const evidenceEvents =
+  await klerosClient.services.event.getEvidenceEvents(transactionId);
 
 // Input:
 // - transactionId: string - The ID of the transaction (same as evidenceGroupId)
@@ -974,7 +1190,8 @@ const evidenceEvents = await klerosClient.services.event.getEvidenceEvents(trans
 
 ```typescript
 // Function to call
-const evidenceData = await klerosClient.services.ipfs.fetchFromIPFS(evidenceURI);
+const evidenceData =
+  await klerosClient.services.ipfs.fetchFromIPFS(evidenceURI);
 
 // Input:
 // - evidenceURI: string - IPFS URI of the evidence (from evidence event)
@@ -1006,48 +1223,180 @@ const rulingEvents = await klerosClient.services.event.getRulingEvents(transacti
 // Use these to build a timeline of the dispute
 ```
 
-### Event Listeners for Real-time Updates
+### Event Monitoring for Dispute Updates
 
-#### Listen for Evidence Submissions
+To monitor dispute-related events in real-time, you can retrieve specific event types and implement polling:
+
+#### Retrieving Evidence Submissions
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForEvidence({
-  evidenceGroupId: transactionId
-});
+const evidenceEvents = await klerosClient.services.event.getEvidenceEvents(transactionId);
 
 // Input:
-// - evidenceGroupId: string - The ID of the evidence group (same as transactionId)
+// - transactionId: string - The ID of the transaction (same as evidenceGroupId)
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Evidence" events
-
-// Event handler
-emitter.on("Evidence", (event) => {
-  // event structure as described earlier
-  // Use this to update the evidence list in real-time
-});
+// - evidenceEvents: EvidenceEvent[] - Array of evidence events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   party: string,               // Address of the party who submitted evidence
+//   evidence: string,            // IPFS URI to the evidence
+//   arbitrator: string,          // Address of the arbitrator
+//   evidenceGroupId: string      // ID of the evidence group
+// }
+// Use this to update the evidence list in real-time
 ```
 
-#### Listen for Ruling Events
+#### Retrieving Ruling Events
 
 ```typescript
 // Function to call
-const emitter = klerosClient.listeners.listenForRuling({
-  disputeId: dispute.id
-});
+const rulingEvents = await klerosClient.services.event.getRulingEvents(transactionId);
 
 // Input:
-// - disputeId: number - The ID of the dispute to monitor
+// - transactionId: string - The ID of the transaction
+// - fromBlock: number - (Optional) The starting block to search from
+// - toBlock: number - (Optional) The ending block to search to
 
 // Output:
-// - EventEmitter that emits "Ruling" events
+// - rulingEvents: RulingEvent[] - Array of ruling events with the following structure:
+// {
+//   transactionId: string,       // ID of the transaction
+//   blockNumber: number,         // Block number when the event was emitted
+//   transactionHash: string,     // Hash of the transaction that emitted the event
+//   timestamp: number,           // Timestamp when the event was emitted
+//   disputeId: number,           // ID of the dispute
+//   ruling: number,              // The ruling given (0: Refused, 1: Sender wins, 2: Receiver wins)
+//   arbitrator: string           // Address of the arbitrator
+// }
+// Use this to update the UI when a ruling is given
+```
 
-// Event handler
-emitter.on("Ruling", (event) => {
-  // event structure as described earlier
-  // Use this to update the UI when a ruling is given
-});
+#### Implementing Dispute Event Polling
+
+```typescript
+// Example of polling for dispute-related events
+function monitorDisputeEvents(transactionId, disputeId, pollingInterval = 15000) {
+  let lastCheckedBlock = 0;
+  
+  const intervalId = setInterval(async () => {
+    try {
+      // Get all new events since the last checked block
+      const newEvidenceEvents = await klerosClient.services.event.getEvidenceEvents(
+        transactionId, 
+        lastCheckedBlock
+      );
+      
+      const newRulingEvents = await klerosClient.services.event.getRulingEvents(
+        transactionId,
+        lastCheckedBlock
+      );
+      
+      // Process new evidence events
+      if (newEvidenceEvents.length > 0) {
+        newEvidenceEvents.forEach(event => {
+          console.log(`New evidence submitted by ${event.party}`);
+          // Update evidence list in UI
+          updateEvidenceList(event);
+          
+          // Update last checked block
+          lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
+        });
+      }
+      
+      // Process new ruling events
+      if (newRulingEvents.length > 0) {
+        newRulingEvents.forEach(event => {
+          if (event.disputeId === disputeId) {
+            console.log(`Ruling ${event.ruling} given for dispute ${event.disputeId}`);
+            // Update ruling display in UI
+            updateRulingDisplay(event);
+            
+            // Update last checked block
+            lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error polling for dispute events:", error);
+    }
+  }, pollingInterval);
+  
+  // Return a function to stop polling
+  return () => clearInterval(intervalId);
+}
+
+// Example UI update functions
+function updateEvidenceList(event) {
+  // Fetch the evidence content from IPFS
+  klerosClient.services.ipfs.fetchFromIPFS(event.evidence)
+    .then(evidenceData => {
+      // Add the evidence to the UI
+      console.log(`Evidence title: ${evidenceData.name}`);
+      console.log(`Evidence description: ${evidenceData.description}`);
+      
+      // Update UI elements
+      // ...
+    })
+    .catch(error => {
+      console.error("Error fetching evidence data:", error);
+    });
+}
+
+function updateRulingDisplay(event) {
+  // Map ruling to human-readable text
+  const rulingText = ["Refused to Rule", "Sender Wins", "Receiver Wins"][event.ruling];
+  console.log(`Ruling: ${rulingText}`);
+  
+  // Update UI elements
+  // ...
+  
+  // Check if in appeal period
+  checkAppealPeriod(event.disputeId);
+}
+
+function checkAppealPeriod(disputeId) {
+  klerosClient.services.dispute.getDispute(disputeId)
+    .then(dispute => {
+      if (dispute.status === DisputeStatus.Appealable) {
+        const now = Math.floor(Date.now() / 1000);
+        const timeRemaining = dispute.appealPeriodEnd - now;
+        
+        if (timeRemaining > 0) {
+          console.log(`Appeal period ends in ${formatTimeRemaining(timeRemaining)}`);
+          // Enable appeal button
+          // ...
+        } else {
+          console.log("Appeal period has ended");
+          // Disable appeal button
+          // ...
+        }
+      }
+    })
+    .catch(error => {
+      console.error("Error checking appeal period:", error);
+    });
+}
+
+function formatTimeRemaining(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  return `${days}d ${hours}h ${minutes}m`;
+}
+
+// Start monitoring
+const stopMonitoring = monitorDisputeEvents("123", 456);
+
+// Later, when navigating away
+// stopMonitoring();
 ```
 
 ### Action Functions
@@ -1060,12 +1409,12 @@ const evidenceURI = await klerosClient.services.ipfs.uploadEvidence({
   name: "Evidence Title",
   description: "Detailed description of the evidence",
   fileURI: "/ipfs/QmFileHash", // Optional
-  fileTypeExtension: "pdf"      // Optional
+  fileTypeExtension: "pdf", // Optional
 });
 
 await klerosClient.actions.evidence.submitEvidence({
   transactionId: transactionId,
-  evidence: evidenceURI
+  evidence: evidenceURI,
 });
 
 // Input:
@@ -1081,8 +1430,13 @@ await klerosClient.actions.evidence.submitEvidence({
 
 ```typescript
 // Function to call
-const fileData = new Uint8Array([/* binary data */]);
-const fileCid = await klerosClient.services.ipfs.uploadToIPFS(fileData, "document.pdf");
+const fileData = new Uint8Array([
+  /* binary data */
+]);
+const fileCid = await klerosClient.services.ipfs.uploadToIPFS(
+  fileData,
+  "document.pdf"
+);
 
 // Input:
 // - fileData: Uint8Array - The binary data of the file
@@ -1099,7 +1453,7 @@ const fileCid = await klerosClient.services.ipfs.uploadToIPFS(fileData, "documen
 // Function to call
 await klerosClient.actions.dispute.appeal({
   transactionId: transactionId,
-  value: appealCost
+  value: appealCost,
 });
 
 // Input:
@@ -1114,17 +1468,20 @@ await klerosClient.actions.dispute.appeal({
 ### UI Components to Include
 
 1. **Dispute Header**
+
    - Dispute ID
    - Status badge (color-coded)
    - Creation date
    - Appeal period countdown (if applicable)
 
 2. **Transaction Context Panel**
+
    - Link back to transaction details
    - Transaction summary (amount, parties)
    - Original transaction terms
 
 3. **Dispute Status Panel**
+
    - Current dispute phase
    - Ruling (if available)
    - Arbitrator information
@@ -1132,12 +1489,14 @@ await klerosClient.actions.dispute.appeal({
    - Appeal period timer (if in appeal period)
 
 4. **Evidence Panel**
+
    - Tabbed view of evidence from each party
    - Evidence submission form
    - Evidence preview
    - File download options
 
 5. **Timeline Panel**
+
    - Chronological display of dispute events
    - Evidence submissions
    - Rulings
@@ -1152,6 +1511,7 @@ await klerosClient.actions.dispute.appeal({
 ### User Interactions
 
 1. **Evidence Submission Flow**
+
    - Click "Submit Evidence" button
    - Upload file(s) if needed
    - Fill out evidence form (title, description)
@@ -1160,6 +1520,7 @@ await klerosClient.actions.dispute.appeal({
    - See evidence added to the list
 
 2. **Appeal Flow**
+
    - View ruling details
    - Check appeal period timer
    - Click "Appeal Ruling" button
@@ -1177,11 +1538,13 @@ await klerosClient.actions.dispute.appeal({
 ### Conditional Rendering Logic
 
 1. **Evidence Submission**
+
    - Only show to transaction parties (sender or receiver)
    - Only enable when dispute is in Waiting status
    - Disable after ruling if not in appeal period
 
 2. **Appeal Actions**
+
    - Only show when dispute is in Appealable status
    - Only enable during appeal period
    - Show countdown timer for appeal deadline
@@ -1196,12 +1559,14 @@ await klerosClient.actions.dispute.appeal({
 ### Error Handling
 
 1. **Evidence Submission Errors**
+
    - Handle IPFS upload failures
    - Validate evidence format
    - Check file size limits
    - Provide clear error messages
 
 2. **Appeal Errors**
+
    - Check if user has sufficient funds
    - Validate appeal period
    - Handle transaction failures
@@ -1215,6 +1580,7 @@ await klerosClient.actions.dispute.appeal({
 ### Responsive Design Considerations
 
 1. **Desktop View**
+
    - Side-by-side panels for dispute details and evidence
    - Tabbed interface for different sections
    - Timeline displayed as vertical flow
@@ -1228,6 +1594,7 @@ await klerosClient.actions.dispute.appeal({
 ### Integration with Arbitrator
 
 1. **Arbitrator Information**
+
    - Display arbitrator name/address
    - Show arbitration cost
    - Link to arbitrator details (if available)
@@ -1253,6 +1620,7 @@ Evidence is stored as a JSON object with the following structure:
 ```
 
 Optional fields that can be included:
+
 ```json
 {
   "fileURI": "/ipfs/QmFileHash",
@@ -1261,10 +1629,12 @@ Optional fields that can be included:
 ```
 
 #### Required Fields:
+
 - `title` (string): A concise title for the evidence
 - `description` (string): A detailed description explaining the evidence and its relevance
 
 #### Optional Fields:
+
 - `fileURI` (string): IPFS URI pointing to an uploaded file
 - `fileTypeExtension` (string): The file extension to indicate the type of file (e.g., "pdf", "jpg", "png", "txt")
 
@@ -1281,10 +1651,7 @@ MetaEvidence is a comprehensive JSON object that defines the terms and context o
   "question": "Which party abided by terms of the contract?",
   "rulingOptions": {
     "type": "single-select",
-    "titles": [
-      "Refund Sender",
-      "Pay Receiver"
-    ],
+    "titles": ["Refund Sender", "Pay Receiver"],
     "descriptions": [
       "Select to return funds to the Sender",
       "Select to release funds to the Receiver"
@@ -1313,6 +1680,7 @@ MetaEvidence is a comprehensive JSON object that defines the terms and context o
 ```
 
 #### Required Fields:
+
 - `category` (string): Always "Escrow" for escrow transactions
 - `title` (string): A concise title for the transaction
 - `description` (string): Detailed description of the transaction terms
@@ -1323,6 +1691,7 @@ MetaEvidence is a comprehensive JSON object that defines the terms and context o
   - `descriptions` (array): Detailed explanations of each ruling option
 
 #### Optional Fields:
+
 - `subCategory` (string): More specific categorization (e.g., "General Service", "Physical goods")
 - `sender` (string): Ethereum address of the sender
 - `receiver` (string): Ethereum address of the receiver
@@ -1341,6 +1710,7 @@ MetaEvidence is a comprehensive JSON object that defines the terms and context o
 ### IPFS URI Format
 
 IPFS URIs should follow this format:
+
 ```
 /ipfs/Qm...
 ```

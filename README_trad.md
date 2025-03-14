@@ -2,6 +2,17 @@
 
 This library provides a TypeScript interface for interacting with the Kleros MultipleArbitrableTransaction contract, which enables secure escrow transactions with built-in dispute resolution.
 
+## Architecture
+
+The library is built with a clean, consistent architecture:
+
+- **BaseService**: A common base class for both read and write operations that handles initialization, contract connections, and shared utilities.
+- **Services**: Classes that extend BaseService to provide read-only operations (queries, data retrieval).
+- **Actions**: Classes that extend BaseService to provide write operations (transactions that modify state).
+- **Client**: A unified interface that combines services and actions for easy access.
+
+This architecture ensures consistent behavior across all components while maintaining a clear separation between read and write operations.
+
 ## Installation and Initialization
 
 ### Installing the Package
@@ -22,26 +33,29 @@ import { ethers } from "ethers";
 
 // Configuration for the Kleros Escrow client
 const config = {
-  // Contract addresses
-  arbitrableAddress: "0x...", // MultipleArbitrableTransaction contract address
-  arbitratorAddress: "0x...", // Arbitrator contract address (e.g., KlerosLiquid)
-
-  // Network configuration
-  networkId: 1, // 1 for Ethereum Mainnet, 5 for Goerli, etc.
-
-  // Optional: IPFS gateway for retrieving evidence and meta-evidence
-  ipfsGateway: "https://cdn.kleros.io", // Default IPFS gateway
+  provider: {
+    url: "https://ethereum.publicnode.com",
+    networkId: 1, // Ethereum mainnet
+  },
+  multipleArbitrableTransaction: {
+    address: "0x0d67440946949FE293B45c52eFD8A9b3d51e2522", // Contract address
+    abi: [], // Optional: will use default ABI if not provided
+  },
+  arbitrator: {
+    // Optional: only needed for advanced arbitrator interactions
+    address: "0x988b3A538b618C7A603e1c11Ab82Cd16dbE28069", // KlerosLiquid address
+    abi: [], // Optional: will use default ABI if not provided
+  },
+  ipfsGateway: "https://cdn.kleros.link", // Default IPFS gateway
 };
 
 // For read-only operations
-const readProvider = new ethers.providers.JsonRpcProvider(
-  "https://rpc.ankr.com/eth"
-);
-const readOnlyClient = createKlerosEscrowClient(config, readProvider);
+const readOnlyClient = createKlerosEscrowClient(config);
 
 // For transactions (using browser wallet)
 if (window.ethereum) {
-  const signer = new ethers.providers.Web3Provider(window.ethereum).getSigner();
+  const provider = new ethers.providers.Web3Provider(window.ethereum);
+  const signer = provider.getSigner();
   const signerClient = createKlerosEscrowClient(config, signer);
 
   // Use signerClient for transactions
@@ -80,12 +94,15 @@ try {
 
 ### Configuration Options
 
-| Option              | Description                                             | Required |
-| ------------------- | ------------------------------------------------------- | -------- |
-| `arbitrableAddress` | Address of the MultipleArbitrableTransaction contract   | Yes      |
-| `arbitratorAddress` | Address of the arbitrator contract                      | Yes      |
-| `networkId`         | Ethereum network ID (1 for Mainnet, 5 for Goerli, etc.) | Yes      |
-| `ipfsGateway`       | IPFS gateway URL (defaults to "https://cdn.kleros.io")  | No       |
+| Option                               | Description                                             | Required |
+| ------------------------------------ | ------------------------------------------------------- | -------- |
+| `provider.url`                       | RPC URL for the Ethereum network                        | Yes      |
+| `provider.networkId`                 | Ethereum network ID (1 for Mainnet, 5 for Goerli, etc.) | Yes      |
+| `multipleArbitrableTransaction.address` | Address of the MultipleArbitrableTransaction contract   | Yes      |
+| `multipleArbitrableTransaction.abi`  | ABI for the contract (optional, uses default if omitted)| No       |
+| `arbitrator.address`                 | Address of the arbitrator contract                      | No       |
+| `arbitrator.abi`                     | ABI for the arbitrator (optional, uses default if omitted) | No    |
+| `ipfsGateway`                        | IPFS gateway URL (defaults to "https://cdn.kleros.link")| No       |
 
 ## User Flows
 
@@ -202,7 +219,7 @@ Both parties can submit evidence to support their case:
 ```typescript
 // Create evidence
 const evidenceURI = await klerosClient.services.ipfs.uploadEvidence({
-  name: "Delivery Proof",
+  title: "Delivery Proof",
   description: "Screenshots showing completed work",
   fileURI: "/ipfs/QmFileHash", // Optional
   fileTypeExtension: "png",
@@ -263,50 +280,64 @@ await klerosClient.actions.dispute.appeal({
 
 ### 9. Monitoring Events
 
-Listen for events to track the status of transactions:
+Monitor events to track the status of transactions:
 
 ```typescript
-// Listen for payment events
-const emitter = klerosClient.listeners.listenForPayment({
-  transactionId: "123",
-});
-/* Returns: EventEmitter - An event emitter that will emit "Payment" events
-   The emitted events have the following structure:
-   {
-     transactionId: string,
-     blockNumber: number,
-     transactionHash: string,
-     timestamp: number,
-     party: string, // Address of the party who made/received the payment
-     amount: string // Amount paid in wei
-   }
-*/
-emitter.on("Payment", (event) => {
-  console.log(`Payment of ${event.amount} made by ${event.party}`);
+// Get all events for a transaction
+const events = await klerosClient.services.event.getEventsForTransaction("123");
+/* Returns: BaseEvent[] - Array of all events related to the transaction, sorted by block number
+   This includes payment events, dispute events, evidence events, etc. */
+
+// Process events
+events.forEach(event => {
+  console.log(`Event at block ${event.blockNumber}: ${event.transactionHash}`);
+  
+  // You can check the event type and handle accordingly
+  if ('amount' in event && 'party' in event) {
+    // This is a payment event
+    console.log(`Payment of ${event.amount} made by ${event.party}`);
+  } else if ('disputeId' in event) {
+    // This is a dispute event
+    console.log(`Dispute ${event.disputeId} created for transaction ${event.transactionId}`);
+  }
 });
 
-// Listen for dispute events
-const disputeEmitter = klerosClient.listeners.listenForDispute({
-  disputeId: 456,
-});
-/* Returns: EventEmitter - An event emitter that will emit "Dispute" events
-   The emitted events have the following structure:
-   {
-     transactionId: string,
-     blockNumber: number,
-     transactionHash: string,
-     timestamp: number,
-     disputeId: number,
-     arbitrator: string, // Address of the arbitrator contract
-     metaEvidenceId: string,
-     evidenceGroupId: string
-   }
-*/
-disputeEmitter.on("Dispute", (event) => {
-  console.log(
-    `Dispute ${event.disputeId} created for transaction ${event.transactionId}`
-  );
-});
+// You can also poll for new events periodically
+function setupEventPolling(transactionId, pollingInterval = 30000) {
+  let lastCheckedBlock = 0;
+  
+  const intervalId = setInterval(async () => {
+    try {
+      // Get events since the last checked block
+      const newEvents = await klerosClient.services.event.getEventsForTransaction(
+        transactionId, 
+        lastCheckedBlock
+      );
+      
+      if (newEvents.length > 0) {
+        console.log(`Found ${newEvents.length} new events`);
+        // Process new events
+        newEvents.forEach(event => {
+          // Handle each event type
+          console.log(`New event: ${event.transactionHash}`);
+          // Update the last checked block
+          lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
+        });
+      }
+    } catch (error) {
+      console.error("Error polling for events:", error);
+    }
+  }, pollingInterval);
+  
+  // Return a function to stop polling
+  return () => clearInterval(intervalId);
+}
+
+// Start polling for events
+const stopPolling = setupEventPolling("123");
+
+// Later, when you want to stop polling
+// stopPolling();
 ```
 
 ## Utility Functions
@@ -361,13 +392,6 @@ const transaction =
      receiverFee: string // Arbitration fee paid by receiver (in wei)
    }
 */
-
-// Get amount paid by a party
-const amountPaid = await klerosClient.services.transaction.getAmountPaid(
-  "123",
-  "0xPartyAddress"
-);
-// Returns: string - The amount paid by the specified party in wei
 ```
 
 ### Fetching Dispute Details
@@ -627,4 +651,62 @@ const evidenceGas =
 // Returns: ethers.BigNumber - The estimated gas cost
 ```
 
-These gas estimation functions help users understand the cost of their actions before executing them, which is especially important for expensive operations like creating disputes.
+## Architecture Details
+
+### BaseService
+
+All services and actions extend the `BaseService` class, which provides:
+
+- Common initialization logic for both read and write operations
+- Contract instance management
+- Provider and signer handling
+- Utility methods for interacting with the blockchain
+
+```typescript
+// BaseService handles both read-only and write operations
+class BaseService {
+  protected provider: ethers.providers.Provider;
+  protected signer: ethers.Signer | null;
+  protected escrowContract: ethers.Contract;
+  protected isReadOnly: boolean;
+  
+  constructor(config: KlerosEscrowConfig, signerOrProvider?: ethers.Signer | ethers.providers.Provider) {
+    // Initialize provider, signer, and contracts
+  }
+  
+  // Utility methods
+  protected async getArbitratorAddress(): Promise<string>;
+  protected async getArbitratorExtraData(): Promise<string>;
+  protected async getArbitratorContract(abi: string[]): Promise<ethers.Contract>;
+  protected canWrite(): boolean;
+  protected ensureCanWrite(): void;
+}
+```
+
+### Services vs Actions
+
+- **Services** focus on read operations and data retrieval
+- **Actions** focus on write operations and transaction submission
+
+Both use the same base class but serve different purposes:
+
+```typescript
+// Read-only service example
+class TransactionService extends BaseService {
+  async getTransaction(id: string): Promise<Transaction>;
+  async getTransactionCount(): Promise<number>;
+  // Other read methods...
+}
+
+// Write action example
+class TransactionActions extends BaseService {
+  async createTransaction(params: CreateTransactionParams): Promise<{
+    transactionResponse: ethers.providers.TransactionResponse;
+    transactionId: string;
+  }>;
+  async pay(params: PaymentParams): Promise<ethers.providers.TransactionResponse>;
+  // Other write methods...
+}
+```
+
+This architecture ensures a consistent API while maintaining a clear separation between read and write operations.
