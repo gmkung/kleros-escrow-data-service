@@ -20,7 +20,7 @@ export interface ContractConfig {
  */
 export interface KlerosEscrowConfig {
   provider: ProviderConfig;
-  multipleArbitrableTransaction: ContractConfig;
+  multipleArbitrableTransaction?: ContractConfig;
   arbitrator?: ContractConfig;
   ipfsGateway?: string;
 } 

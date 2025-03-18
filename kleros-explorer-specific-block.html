@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kleros Escrow Explorer - Specific Block Search</title>
+    <!-- Load ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+        color: #333;
+      }
+      h1 {
+        color: #3e7bfa;
+        text-align: center;
+      }
+      button {
+        background-color: #3e7bfa;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+      button:hover {
+        background-color: #2a5cd7;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .event-card {
+        border-left: 4px solid #3e7bfa;
+        padding-left: 15px;
+        margin-bottom: 10px;
+      }
+      .status {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 14px;
+        font-weight: bold;
+        display: inline-block;
+      }
+      .status-connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .status-disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      pre {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+        font-size: 14px;
+      }
+      .hidden {
+        display: none;
+      }
+      .event-type {
+        font-weight: bold;
+        margin-right: 10px;
+      }
+      .timestamp {
+        color: #666;
+        font-size: 14px;
+      }
+      .loading {
+        text-align: center;
+        padding: 20px;
+        font-style: italic;
+        color: #666;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      .form-row {
+        display: flex;
+        gap: 10px;
+      }
+      .form-row input {
+        flex: 1;
+      }
+      .checkbox-group {
+        margin: 10px 0;
+      }
+      .checkbox-group label {
+        margin-left: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kleros Escrow Explorer - Specific Block Search</h1>
+
+    <div class="container">
+      <div class="card">
+        <h2>Search Configuration</h2>
+        
+        <div class="form-group">
+          <label for="transaction-id">Transaction ID</label>
+          <input type="text" id="transaction-id" placeholder="Enter Transaction ID" value="3" />
+        </div>
+        
+        <div class="form-group">
+          <label>Block Range</label>
+          <div class="form-row">
+            <input type="number" id="from-block" placeholder="From Block" value="21775212" />
+            <input type="number" id="to-block" placeholder="To Block" value="21777212" />
+          </div>
+          <small>Default range is around block 21776212 where the MetaEvidence event is known to exist</small>
+        </div>
+        
+        <div class="form-group">
+          <label>Event Types to Search</label>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-metaevidence" checked />
+            <label for="event-metaevidence">MetaEvidence</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-payment" />
+            <label for="event-payment">Payment</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-hastopay" />
+            <label for="event-hastopay">HasToPayFee</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-dispute" />
+            <label for="event-dispute">Dispute</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-evidence" />
+            <label for="event-evidence">Evidence</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="event-ruling" />
+            <label for="event-ruling">Ruling</label>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Filter Options</label>
+          <div class="checkbox-group">
+            <input type="checkbox" id="filter-by-id" checked />
+            <label for="filter-by-id">Filter by Transaction ID</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="show-raw-events" />
+            <label for="show-raw-events">Show Raw Event Data</label>
+          </div>
+        </div>
+        
+        <button id="fetch-events">Search for Events</button>
+        <div id="loading" class="loading hidden">
+          Searching for events...
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Auto Block Range Search</h2>
+        <p>This will automatically calculate the block range based on the transaction's lastInteraction timestamp.</p>
+        
+        <div class="form-group">
+          <label for="auto-transaction-id">Transaction ID</label>
+          <input type="text" id="auto-transaction-id" placeholder="Enter Transaction ID" value="3" />
+        </div>
+        
+        <div class="form-group">
+          <label>Search Options</label>
+          <div class="checkbox-group">
+            <input type="checkbox" id="auto-event-metaevidence" checked />
+            <label for="auto-event-metaevidence">MetaEvidence</label>
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="auto-show-raw-events" />
+            <label for="auto-show-raw-events">Show Raw Event Data</label>
+          </div>
+        </div>
+        
+        <button id="auto-fetch-events">Auto Search</button>
+        <div id="auto-loading" class="loading hidden">
+          Processing transaction and searching for events...
+        </div>
+      </div>
+
+      <div id="transaction-details" class="card hidden">
+        <h2>Transaction Details</h2>
+        <pre id="transaction-json"></pre>
+      </div>
+
+      <div id="block-calculation" class="card hidden">
+        <h2>Block Calculation Details</h2>
+        <div id="calculation-steps"></div>
+      </div>
+
+      <div id="events-container" class="card hidden">
+        <h2>Events</h2>
+        <div id="events-list"></div>
+      </div>
+
+      <div id="raw-events-container" class="card hidden">
+        <h2>Raw Event Data</h2>
+        <pre id="raw-events-json"></pre>
+      </div>
+
+      <div id="meta-evidence" class="card hidden">
+        <h3>Meta Evidence</h3>
+        <pre id="meta-evidence-json"></pre>
+      </div>
+
+      <div id="error-message" class="hidden" style="color: red"></div>
+    </div>
+
+    <script>
+      // Contract ABI - Only including the parts we need
+      const CONTRACT_ABI = [
+        {
+          "constant": true,
+          "inputs": [{ "name": "", "type": "uint256" }],
+          "name": "transactions",
+          "outputs": [
+            { "name": "sender", "type": "address" },
+            { "name": "receiver", "type": "address" },
+            { "name": "amount", "type": "uint256" },
+            { "name": "timeoutPayment", "type": "uint256" },
+            { "name": "disputeId", "type": "uint256" },
+            { "name": "senderFee", "type": "uint256" },
+            { "name": "receiverFee", "type": "uint256" },
+            { "name": "lastInteraction", "type": "uint256" },
+            { "name": "status", "type": "uint8" }
+          ],
+          "payable": false,
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_metaEvidenceID", "type": "uint256" },
+            { "indexed": false, "name": "_evidence", "type": "string" }
+          ],
+          "name": "MetaEvidence",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_transactionID", "type": "uint256" },
+            { "indexed": false, "name": "_amount", "type": "uint256" },
+            { "indexed": false, "name": "_party", "type": "address" }
+          ],
+          "name": "Payment",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_transactionID", "type": "uint256" },
+            { "indexed": false, "name": "_party", "type": "uint8" }
+          ],
+          "name": "HasToPayFee",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_evidenceGroupID", "type": "uint256" },
+            { "indexed": true, "name": "_party", "type": "address" },
+            { "indexed": false, "name": "_evidence", "type": "string" }
+          ],
+          "name": "Evidence",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_disputeID", "type": "uint256" },
+            { "indexed": false, "name": "_metaEvidenceID", "type": "uint256" },
+            { "indexed": false, "name": "_evidenceGroupID", "type": "uint256" }
+          ],
+          "name": "Dispute",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_disputeID", "type": "uint256" },
+            { "indexed": false, "name": "_ruling", "type": "uint256" }
+          ],
+          "name": "Ruling",
+          "type": "event"
+        }
+      ];
+
+      // Contract address
+      const CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
+      
+      // IPFS Gateway
+      const IPFS_GATEWAY = "https://cdn.kleros.link";
+
+      // DOM Elements
+      const transactionIdInput = document.getElementById("transaction-id");
+      const fromBlockInput = document.getElementById("from-block");
+      const toBlockInput = document.getElementById("to-block");
+      const fetchEventsBtn = document.getElementById("fetch-events");
+      const loadingEl = document.getElementById("loading");
+      const eventsContainerEl = document.getElementById("events-container");
+      const eventsListEl = document.getElementById("events-list");
+      const rawEventsContainerEl = document.getElementById("raw-events-container");
+      const rawEventsJsonEl = document.getElementById("raw-events-json");
+      const metaEvidenceEl = document.getElementById("meta-evidence");
+      const metaEvidenceJsonEl = document.getElementById("meta-evidence-json");
+      const errorMessageEl = document.getElementById("error-message");
+      
+      // Auto search elements
+      const autoTransactionIdInput = document.getElementById("auto-transaction-id");
+      const autoFetchEventsBtn = document.getElementById("auto-fetch-events");
+      const autoLoadingEl = document.getElementById("auto-loading");
+      const autoEventMetaEvidenceCheckbox = document.getElementById("auto-event-metaevidence");
+      const autoShowRawEventsCheckbox = document.getElementById("auto-show-raw-events");
+      const transactionDetailsEl = document.getElementById("transaction-details");
+      const transactionJsonEl = document.getElementById("transaction-json");
+      const blockCalculationEl = document.getElementById("block-calculation");
+      const calculationStepsEl = document.getElementById("calculation-steps");
+      
+      // Event type checkboxes
+      const eventMetaEvidenceCheckbox = document.getElementById("event-metaevidence");
+      const eventPaymentCheckbox = document.getElementById("event-payment");
+      const eventHasToPayCheckbox = document.getElementById("event-hastopay");
+      const eventDisputeCheckbox = document.getElementById("event-dispute");
+      const eventEvidenceCheckbox = document.getElementById("event-evidence");
+      const eventRulingCheckbox = document.getElementById("event-ruling");
+      
+      // Filter options
+      const filterByIdCheckbox = document.getElementById("filter-by-id");
+      const showRawEventsCheckbox = document.getElementById("show-raw-events");
+
+      // State
+      let contract;
+
+      // Check if ethers is loaded
+      if (typeof ethers === "undefined") {
+        console.error("Ethers library not loaded");
+        errorMessageEl.textContent = "Error: Ethers library not loaded. Please refresh the page.";
+        errorMessageEl.classList.remove("hidden");
+        throw new Error("Ethers library not loaded");
+      }
+
+      // Initialize contract
+      function initContract() {
+        try {
+          const provider = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+          contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+          console.log("Contract initialized");
+          return true;
+        } catch (error) {
+          console.error("Error initializing contract:", error);
+          errorMessageEl.textContent = `Error initializing contract: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+          return false;
+        }
+      }
+
+      // Fetch events from contract
+      async function fetchEvents() {
+        // Get input values
+        const transactionId = transactionIdInput.value.trim();
+        const fromBlock = parseInt(fromBlockInput.value.trim());
+        const toBlock = parseInt(toBlockInput.value.trim());
+        const filterById = filterByIdCheckbox.checked;
+        const showRawEvents = showRawEventsCheckbox.checked;
+        
+        // Check which event types to fetch
+        const eventTypes = [];
+        if (eventMetaEvidenceCheckbox.checked) eventTypes.push("metaEvidence");
+        if (eventPaymentCheckbox.checked) eventTypes.push("payment");
+        if (eventHasToPayCheckbox.checked) eventTypes.push("hasToPayFee");
+        if (eventDisputeCheckbox.checked) eventTypes.push("dispute");
+        if (eventEvidenceCheckbox.checked) eventTypes.push("evidence");
+        if (eventRulingCheckbox.checked) eventTypes.push("ruling");
+        
+        // Validate inputs
+        if (!transactionId) {
+          alert("Please enter a transaction ID");
+          return;
+        }
+        
+        if (isNaN(fromBlock) || isNaN(toBlock)) {
+          alert("Please enter valid block numbers");
+          return;
+        }
+        
+        if (eventTypes.length === 0) {
+          alert("Please select at least one event type to search for");
+          return;
+        }
+        
+        // Reset UI
+        errorMessageEl.classList.add("hidden");
+        eventsContainerEl.classList.add("hidden");
+        rawEventsContainerEl.classList.add("hidden");
+        metaEvidenceEl.classList.add("hidden");
+        loadingEl.classList.remove("hidden");
+        
+        try {
+          // Initialize contract if not already done
+          if (!contract) {
+            if (!initContract()) {
+              throw new Error("Failed to initialize contract. Please try again.");
+            }
+          }
+          
+          // Convert block numbers to hex strings for ethers.js
+          const fromBlockHex = ethers.utils.hexValue(fromBlock);
+          const toBlockHex = ethers.utils.hexValue(toBlock);
+          
+          console.log(`Searching for events from block ${fromBlock} to ${toBlock}`);
+          console.log(`Event types: ${eventTypes.join(", ")}`);
+          console.log(`Filter by ID: ${filterById ? "Yes" : "No"}`);
+          
+          // Create a provider for block information
+          const providerForBlocks = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+          
+          // Store all events and raw events
+          const allEvents = [];
+          const rawEvents = {};
+          
+          // Fetch each selected event type
+          for (const eventType of eventTypes) {
+            try {
+              console.log(`Fetching ${eventType} events...`);
+              
+              let filter;
+              let events;
+              
+              switch (eventType) {
+                case "metaEvidence":
+                  filter = contract.filters.MetaEvidence();
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.metaEvidence = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    // If filtering by ID, check if this event matches our transaction ID
+                    if (!filterById || event.args._metaEvidenceID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                        type: "metaEvidence",
+                        transactionId: event.args._metaEvidenceID.toString(),
+                        blockNumber: event.blockNumber,
+                        transactionHash: event.transactionHash,
+                        timestamp: block.timestamp,
+                        metaEvidenceId: event.args._metaEvidenceID.toString(),
+                        evidence: event.args._evidence
+                      });
+                    }
+                  }
+                  break;
+                  
+                case "payment":
+                  filter = contract.filters.Payment();
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.payment = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    if (!filterById || event.args._transactionID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                        type: "payment",
+                        transactionId: event.args._transactionID.toString(),
+                        blockNumber: event.blockNumber,
+                        transactionHash: event.transactionHash,
+                        timestamp: block.timestamp,
+                        amount: event.args._amount.toString(),
+                        party: event.args._party
+                      });
+                    }
+                  }
+                  break;
+                  
+                case "hasToPayFee":
+                  filter = contract.filters.HasToPayFee();
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.hasToPayFee = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    if (!filterById || event.args._transactionID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                        type: "hasToPayFee",
+                        transactionId: event.args._transactionID.toString(),
+                        blockNumber: event.blockNumber,
+                        transactionHash: event.transactionHash,
+                        timestamp: block.timestamp,
+                        party: event.args._party
+                      });
+                    }
+                  }
+                  break;
+                  
+                case "dispute":
+                  filter = contract.filters.Dispute();
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.dispute = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    if (!filterById || event.args._metaEvidenceID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                        type: "dispute",
+                        transactionId: event.args._metaEvidenceID.toString(),
+                        blockNumber: event.blockNumber,
+                        transactionHash: event.transactionHash,
+                        timestamp: block.timestamp,
+                        disputeId: event.args._disputeID.toNumber(),
+                        arbitrator: event.args._arbitrator,
+                        metaEvidenceId: event.args._metaEvidenceID.toString(),
+                        evidenceGroupId: event.args._evidenceGroupID.toString()
+                      });
+                    }
+                  }
+                  break;
+                  
+                case "evidence":
+                  filter = contract.filters.Evidence();
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.evidence = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    if (!filterById || event.args._evidenceGroupID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                        type: "evidence",
+                        transactionId: event.args._evidenceGroupID.toString(),
+                        blockNumber: event.blockNumber,
+                        transactionHash: event.transactionHash,
+                        timestamp: block.timestamp,
+                        party: event.args._party,
+                        evidence: event.args._evidence,
+                        arbitrator: event.args._arbitrator
+                      });
+                    }
+                  }
+                  break;
+                  
+                case "ruling":
+                  // For ruling events, we need to know the dispute ID
+                  if (filterById) {
+                    try {
+                      // Get the transaction details to find the dispute ID
+                      const tx = await contract.transactions(transactionId);
+                      const disputeId = tx.disputeId.toNumber();
+                      
+                      // Only proceed if there's an actual dispute
+                      if (disputeId > 0) {
+                        filter = contract.filters.Ruling(null, disputeId);
+                      } else {
+                        console.log("No dispute ID found for this transaction, skipping ruling events");
+                        continue;
+                      }
+                    } catch (error) {
+                      console.warn("Error getting dispute ID:", error);
+                      continue;
+                    }
+                  } else {
+                    // If not filtering by ID, get all ruling events
+                    filter = contract.filters.Ruling();
+                  }
+                  
+                  events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+                  rawEvents.ruling = events;
+                  
+                  // Process events
+                  for (const event of events) {
+                    const block = await providerForBlocks.getBlock(event.blockNumber);
+                    allEvents.push({
+                      type: "ruling",
+                      transactionId: transactionId, // We don't have this in the event
+                      blockNumber: event.blockNumber,
+                      transactionHash: event.transactionHash,
+                      timestamp: block.timestamp,
+                      disputeId: event.args._disputeID.toNumber(),
+                      ruling: event.args._ruling.toNumber(),
+                      arbitrator: event.args._arbitrator
+                    });
+                  }
+                  break;
+              }
+              
+              console.log(`Found ${events.length} ${eventType} events`);
+              
+            } catch (error) {
+              console.warn(`Error fetching ${eventType} events:`, error);
+            }
+          }
+          
+          // Sort events by block number
+          allEvents.sort((a, b) => a.blockNumber - b.blockNumber);
+          
+          // Display events
+          displayEvents(allEvents);
+          
+          // Display raw events if requested
+          if (showRawEvents) {
+            displayRawEvents(rawEvents);
+          }
+          
+          // Process meta-evidence events
+          const metaEvidenceEvents = allEvents.filter(event => event.type === "metaEvidence");
+          if (metaEvidenceEvents.length > 0) {
+            processMetaEvidence(metaEvidenceEvents[0]);
+          }
+          
+        } catch (error) {
+          console.error("Error fetching events:", error);
+          errorMessageEl.textContent = `Error: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+        } finally {
+          loadingEl.classList.add("hidden");
+        }
+      }
+      
+      // Display events in the UI
+      function displayEvents(events) {
+        eventsListEl.innerHTML = "";
+        
+        if (events.length === 0) {
+          eventsListEl.innerHTML = "<div>No events found in the specified block range.</div>";
+        } else {
+          events.forEach(event => {
+            eventsListEl.innerHTML += formatEvent(event);
+          });
+        }
+        
+        eventsContainerEl.classList.remove("hidden");
+      }
+      
+      // Display raw events in the UI
+      function displayRawEvents(rawEvents) {
+        // Format the raw events for display
+        const formattedEvents = {};
+        
+        for (const [eventType, events] of Object.entries(rawEvents)) {
+          formattedEvents[eventType] = events.map(event => ({
+            blockNumber: event.blockNumber,
+            transactionHash: event.transactionHash,
+            args: Object.fromEntries(
+              Object.entries(event.args).map(([key, value]) => [
+                key,
+                typeof value === 'object' ? value.toString() : value
+              ])
+            )
+          }));
+        }
+        
+        rawEventsJsonEl.textContent = JSON.stringify(formattedEvents, null, 2);
+        rawEventsContainerEl.classList.remove("hidden");
+      }
+      
+      // Process meta-evidence event
+      async function processMetaEvidence(event) {
+        if (!event || !event.evidence) {
+          metaEvidenceJsonEl.textContent = "No meta-evidence data available.";
+          metaEvidenceEl.classList.remove("hidden");
+          return;
+        }
+        
+        console.log(`Found meta-evidence URI: ${event.evidence}`);
+        metaEvidenceJsonEl.textContent = `Fetching meta-evidence data from IPFS: ${event.evidence}`;
+        metaEvidenceEl.classList.remove("hidden");
+        
+        const metaEvidenceData = await fetchFromIPFS(event.evidence);
+        
+        if (metaEvidenceData) {
+          metaEvidenceJsonEl.textContent = JSON.stringify(metaEvidenceData, null, 2);
+        } else {
+          metaEvidenceJsonEl.textContent = "Failed to fetch meta-evidence data from IPFS.";
+        }
+      }
+      
+      // Fetch meta evidence data from IPFS
+      async function fetchFromIPFS(uri) {
+        if (!uri) return null;
+        
+        // Handle IPFS URIs
+        let url = uri;
+        if (uri.startsWith('/ipfs/')) {
+          url = `${IPFS_GATEWAY}${uri}`;
+        } else if (uri.startsWith('ipfs://')) {
+          url = `${IPFS_GATEWAY}/ipfs/${uri.slice(7)}`;
+        }
+        
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return await response.json();
+        } catch (error) {
+          console.error(`Error fetching from IPFS: ${error.message}`);
+          return null;
+        }
+      }
+      
+      // Format event for display
+      function formatEvent(event) {
+        const date = new Date(event.timestamp * 1000).toLocaleString();
+        let description = "";
+        let icon = "";
+        
+        switch (event.type) {
+          case "metaEvidence":
+            icon = "📝";
+            description = `MetaEvidence for transaction ${event.metaEvidenceId}`;
+            break;
+          case "payment":
+            icon = "💰";
+            const amount = ethers.utils.formatEther(event.amount);
+            description = `${amount} ETH payment for transaction ${event.transactionId}`;
+            break;
+          case "hasToPayFee":
+            icon = "💸";
+            description = `Fee payment required for transaction ${event.transactionId} by party ${event.party === 0 ? "sender" : "receiver"}`;
+            break;
+          case "dispute":
+            icon = "⚖️";
+            description = `Dispute #${event.disputeId} created for transaction ${event.transactionId}`;
+            break;
+          case "evidence":
+            icon = "📄";
+            description = `Evidence submitted for transaction ${event.transactionId}`;
+            break;
+          case "ruling":
+            icon = "🏛️";
+            const rulingText = [
+              "Refused to Rule",
+              "Sender Wins",
+              "Receiver Wins",
+            ][event.ruling];
+            description = `Ruling: ${rulingText} for dispute #${event.disputeId}`;
+            break;
+          default:
+            icon = "❓";
+            description = "Unknown event";
+        }
+        
+        return `
+        <div class="event-card">
+          <div>
+            <span class="event-type">${icon} ${event.type.charAt(0).toUpperCase() + event.type.slice(1)}</span>
+            <span class="timestamp">${date}</span>
+          </div>
+          <div>${description}</div>
+          <div>Block: ${event.blockNumber}</div>
+          <div>
+            <a href="https://etherscan.io/tx/${event.transactionHash}" target="_blank">
+              View on Etherscan
+            </a>
+          </div>
+        </div>
+      `;
+      }
+      
+      // Event listeners
+      fetchEventsBtn.addEventListener("click", fetchEvents);
+      autoFetchEventsBtn.addEventListener("click", autoFetchEvents);
+      
+      // Initialize contract on page load
+      initContract();
+      
+      // Auto fetch events based on transaction ID only
+      async function autoFetchEvents() {
+        // Get input values
+        const transactionId = autoTransactionIdInput.value.trim();
+        const showRawEvents = autoShowRawEventsCheckbox.checked;
+        const searchMetaEvidence = autoEventMetaEvidenceCheckbox.checked;
+        
+        // Validate inputs
+        if (!transactionId) {
+          alert("Please enter a transaction ID");
+          return;
+        }
+        
+        // Reset UI
+        errorMessageEl.classList.add("hidden");
+        eventsContainerEl.classList.add("hidden");
+        rawEventsContainerEl.classList.add("hidden");
+        metaEvidenceEl.classList.add("hidden");
+        transactionDetailsEl.classList.add("hidden");
+        blockCalculationEl.classList.add("hidden");
+        autoLoadingEl.classList.remove("hidden");
+        
+        try {
+          // Initialize contract if not already done
+          if (!contract) {
+            if (!initContract()) {
+              throw new Error("Failed to initialize contract. Please try again.");
+            }
+          }
+          
+          // Step 1: Fetch transaction details
+          calculationStepsEl.innerHTML = "<div>Step 1: Fetching transaction details...</div>";
+          
+          const transaction = await contract.transactions(transactionId);
+          
+          // Format transaction details for display
+          const formattedTransaction = {
+            sender: transaction.sender,
+            receiver: transaction.receiver,
+            amount: ethers.utils.formatEther(transaction.amount) + " ETH",
+            timeoutPayment: transaction.timeoutPayment.toString(),
+            disputeId: transaction.disputeId.toString(),
+            senderFee: ethers.utils.formatEther(transaction.senderFee) + " ETH",
+            receiverFee: ethers.utils.formatEther(transaction.receiverFee) + " ETH",
+            lastInteraction: transaction.lastInteraction.toString(),
+            lastInteractionDate: new Date(transaction.lastInteraction.toNumber() * 1000).toLocaleString(),
+            status: ["Waiting", "Ongoing", "Resolved", "Disputed"][transaction.status] || transaction.status.toString()
+          };
+          
+          // Display transaction details
+          transactionJsonEl.textContent = JSON.stringify(formattedTransaction, null, 2);
+          transactionDetailsEl.classList.remove("hidden");
+          
+          // Step 2: Calculate block range based on lastInteraction
+          calculationStepsEl.innerHTML += "<div>Step 2: Calculating block range based on lastInteraction timestamp...</div>";
+          blockCalculationEl.classList.remove("hidden");
+          
+          // Get the lastInteraction timestamp
+          const lastInteractionTimestamp = transaction.lastInteraction.toNumber();
+          
+          // Get the current block
+          const provider = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+          const currentBlock = await provider.getBlockNumber();
+          const currentBlockDetails = await provider.getBlock(currentBlock);
+          const currentTimestamp = currentBlockDetails.timestamp;
+          
+          // Calculate the approximate block number for the lastInteraction timestamp
+          // Ethereum blocks are mined approximately every 13 seconds
+          const AVERAGE_BLOCK_TIME = 13; // seconds
+          const secondsDifference = currentTimestamp - lastInteractionTimestamp;
+          const estimatedBlocksBack = Math.floor(secondsDifference / AVERAGE_BLOCK_TIME);
+          const estimatedLastInteractionBlock = currentBlock - estimatedBlocksBack;
+          
+          // Set the block range to search (10,000 blocks before the estimated block)
+          const fromBlock = Math.max(1, estimatedLastInteractionBlock - 10000);
+          const toBlock = estimatedLastInteractionBlock + 100; // Add a small buffer
+          
+          // Display calculation details
+          calculationStepsEl.innerHTML += `
+            <div>Current block: ${currentBlock}</div>
+            <div>Current timestamp: ${currentTimestamp} (${new Date(currentTimestamp * 1000).toLocaleString()})</div>
+            <div>Last interaction timestamp: ${lastInteractionTimestamp} (${new Date(lastInteractionTimestamp * 1000).toLocaleString()})</div>
+            <div>Time difference: ${secondsDifference} seconds</div>
+            <div>Estimated blocks back: ${estimatedBlocksBack}</div>
+            <div>Estimated block for last interaction: ${estimatedLastInteractionBlock}</div>
+            <div>Search range: From block ${fromBlock} to ${toBlock}</div>
+          `;
+          
+          // Step 3: Search for events in the calculated block range
+          calculationStepsEl.innerHTML += "<div>Step 3: Searching for events in the calculated block range...</div>";
+          
+          // Convert block numbers to hex strings for ethers.js
+          const fromBlockHex = ethers.utils.hexValue(fromBlock);
+          const toBlockHex = ethers.utils.hexValue(toBlock);
+          
+          console.log(`Auto searching for events from block ${fromBlock} to ${toBlock}`);
+          
+          // Store all events and raw events
+          const allEvents = [];
+          const rawEvents = {};
+          
+          // Always search for MetaEvidence events if checkbox is checked
+          if (searchMetaEvidence) {
+            try {
+              console.log("Fetching MetaEvidence events...");
+              
+              const filter = contract.filters.MetaEvidence();
+              const events = await contract.queryFilter(filter, fromBlockHex, toBlockHex);
+              rawEvents.metaEvidence = events;
+              
+              // Process events
+              for (const event of events) {
+                // Check if this event matches our transaction ID
+                if (event.args._metaEvidenceID.toString() === transactionId) {
+                  const block = await provider.getBlock(event.blockNumber);
+                  allEvents.push({
+                    type: "metaEvidence",
+                    transactionId: event.args._metaEvidenceID.toString(),
+                    blockNumber: event.blockNumber,
+                    transactionHash: event.transactionHash,
+                    timestamp: block.timestamp,
+                    metaEvidenceId: event.args._metaEvidenceID.toString(),
+                    evidence: event.args._evidence
+                  });
+                }
+              }
+              
+              console.log(`Found ${events.length} MetaEvidence events, ${allEvents.length} matching transaction ID ${transactionId}`);
+              calculationStepsEl.innerHTML += `<div>Found ${events.length} MetaEvidence events, ${allEvents.length} matching transaction ID ${transactionId}</div>`;
+              
+            } catch (error) {
+              console.warn("Error fetching MetaEvidence events:", error);
+              calculationStepsEl.innerHTML += `<div style="color: red">Error fetching MetaEvidence events: ${error.message}</div>`;
+            }
+          }
+          
+          // If no events found, try searching in earlier blocks
+          if (allEvents.length === 0 && searchMetaEvidence) {
+            calculationStepsEl.innerHTML += "<div>No events found in the initial block range. Trying earlier blocks...</div>";
+            
+            // Try up to 10 more ranges of 10,000 blocks each
+            for (let i = 1; i <= 10; i++) {
+              const extendedFromBlock = Math.max(1, fromBlock - i * 10000);
+              const extendedToBlock = fromBlock - (i - 1) * 10000 - 1;
+              
+              calculationStepsEl.innerHTML += `<div>Extended search ${i}: From block ${extendedFromBlock} to ${extendedToBlock}</div>`;
+              
+              try {
+                const extendedFromBlockHex = ethers.utils.hexValue(extendedFromBlock);
+                const extendedToBlockHex = ethers.utils.hexValue(extendedToBlock);
+                
+                console.log(`Extended search ${i}: From block ${extendedFromBlock} to ${extendedToBlock}`);
+                
+                const filter = contract.filters.MetaEvidence();
+                const events = await contract.queryFilter(filter, extendedFromBlockHex, extendedToBlockHex);
+                
+                // Add to raw events
+                if (!rawEvents.metaEvidence) {
+                  rawEvents.metaEvidence = events;
+                } else {
+                  rawEvents.metaEvidence = [...rawEvents.metaEvidence, ...events];
+                }
+                
+                // Process events
+                let matchingEvents = 0;
+                for (const event of events) {
+                  // Check if this event matches our transaction ID
+                  if (event.args._metaEvidenceID.toString() === transactionId) {
+                    matchingEvents++;
+                    const block = await provider.getBlock(event.blockNumber);
+                    allEvents.push({
+                      type: "metaEvidence",
+                      transactionId: event.args._metaEvidenceID.toString(),
+                      blockNumber: event.blockNumber,
+                      transactionHash: event.transactionHash,
+                      timestamp: block.timestamp,
+                      metaEvidenceId: event.args._metaEvidenceID.toString(),
+                      evidence: event.args._evidence
+                    });
+                  }
+                }
+                
+                console.log(`Extended search ${i}: Found ${events.length} MetaEvidence events, ${matchingEvents} matching transaction ID ${transactionId}`);
+                calculationStepsEl.innerHTML += `<div>Extended search ${i}: Found ${events.length} MetaEvidence events, ${matchingEvents} matching transaction ID ${transactionId}</div>`;
+                
+                // If we found matching events, stop searching
+                if (matchingEvents > 0) {
+                  calculationStepsEl.innerHTML += `<div style="color: green">Found matching events in extended search ${i}! Stopping further searches.</div>`;
+                  break;
+                }
+                
+              } catch (error) {
+                console.warn(`Error in extended search ${i}:`, error);
+                calculationStepsEl.innerHTML += `<div style="color: red">Error in extended search ${i}: ${error.message}</div>`;
+              }
+            }
+          }
+          
+          // Sort events by block number
+          allEvents.sort((a, b) => a.blockNumber - b.blockNumber);
+          
+          // Display events
+          displayEvents(allEvents);
+          
+          // Display raw events if requested
+          if (showRawEvents) {
+            displayRawEvents(rawEvents);
+          }
+          
+          // Process meta-evidence events
+          const metaEvidenceEvents = allEvents.filter(event => event.type === "metaEvidence");
+          if (metaEvidenceEvents.length > 0) {
+            processMetaEvidence(metaEvidenceEvents[0]);
+          }
+          
+          // Final step summary
+          calculationStepsEl.innerHTML += `
+            <div style="margin-top: 15px; font-weight: bold;">
+              Search Summary:
+              <ul>
+                <li>Transaction ID: ${transactionId}</li>
+                <li>Initial block range: ${fromBlock} to ${toBlock}</li>
+                <li>Total events found: ${allEvents.length}</li>
+                <li>MetaEvidence events found: ${metaEvidenceEvents.length}</li>
+              </ul>
+            </div>
+          `;
+          
+        } catch (error) {
+          console.error("Error in auto fetch process:", error);
+          errorMessageEl.textContent = `Error: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+          calculationStepsEl.innerHTML += `<div style="color: red">Error: ${error.message}</div>`;
+        } finally {
+          autoLoadingEl.classList.add("hidden");
+        }
+      }
+    </script>
+  </body>
+</html> 

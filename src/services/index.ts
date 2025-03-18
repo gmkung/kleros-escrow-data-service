@@ -1,6 +1,6 @@
 // Export all services
-export * from './transaction';
-export * from './dispute';
-export * from './arbitrator';
-export * from './event';
-export * from './ipfs'; 
+export { TransactionService } from "./transaction";
+export { DisputeService } from "./dispute";
+export { ArbitratorService } from "./arbitrator";
+export { IPFSService } from "./ipfs";
+export { EventService } from "./event"; 

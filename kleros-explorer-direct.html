@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kleros Escrow Explorer - Direct Contract Access</title>
+    <!-- Load ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+        color: #333;
+      }
+      h1 {
+        color: #3e7bfa;
+        text-align: center;
+      }
+      button {
+        background-color: #3e7bfa;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+      button:hover {
+        background-color: #2a5cd7;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .event-card {
+        border-left: 4px solid #3e7bfa;
+        padding-left: 15px;
+        margin-bottom: 10px;
+      }
+      .status {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 14px;
+        font-weight: bold;
+        display: inline-block;
+      }
+      .status-connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .status-disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      pre {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+        font-size: 14px;
+      }
+      .hidden {
+        display: none;
+      }
+      .event-type {
+        font-weight: bold;
+        margin-right: 10px;
+      }
+      .timestamp {
+        color: #666;
+        font-size: 14px;
+      }
+      .loading {
+        text-align: center;
+        padding: 20px;
+        font-style: italic;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kleros Escrow Explorer - Direct Contract Access</h1>
+
+    <div class="container">
+      <div class="card">
+        <h2>Wallet Connection</h2>
+        <div id="connection-status" class="status status-disconnected">
+          Disconnected
+        </div>
+        <button id="connect-wallet">Connect Wallet</button>
+        <div id="wallet-address"></div>
+      </div>
+
+      <div class="card">
+        <h2>Transaction Explorer</h2>
+        <input
+          type="text"
+          id="transaction-id"
+          placeholder="Enter Transaction ID"
+        />
+        <button id="fetch-events">Fetch Events</button>
+        <div id="loading" class="loading hidden">
+          Loading transaction data...
+        </div>
+
+        <div id="transaction-details" class="hidden">
+          <h3>Transaction Details</h3>
+          <pre id="transaction-json"></pre>
+        </div>
+
+        <div id="events-container" class="hidden">
+          <h3>Events</h3>
+          <div id="events-list"></div>
+        </div>
+
+        <div id="meta-evidence" class="hidden">
+          <h3>Meta Evidence</h3>
+          <pre id="meta-evidence-json"></pre>
+        </div>
+
+        <div id="dispute-details" class="hidden">
+          <h3>Dispute Details</h3>
+          <pre id="dispute-json"></pre>
+        </div>
+
+        <div id="error-message" class="hidden" style="color: red"></div>
+      </div>
+    </div>
+
+    <script>
+      // Contract ABI - Only including the parts we need
+      const CONTRACT_ABI = [
+        {
+          "constant": true,
+          "inputs": [{ "name": "", "type": "uint256" }],
+          "name": "transactions",
+          "outputs": [
+            { "name": "sender", "type": "address" },
+            { "name": "receiver", "type": "address" },
+            { "name": "amount", "type": "uint256" },
+            { "name": "timeoutPayment", "type": "uint256" },
+            { "name": "disputeId", "type": "uint256" },
+            { "name": "senderFee", "type": "uint256" },
+            { "name": "receiverFee", "type": "uint256" },
+            { "name": "lastInteraction", "type": "uint256" },
+            { "name": "status", "type": "uint8" }
+          ],
+          "payable": false,
+          "stateMutability": "view",
+          "type": "function"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_metaEvidenceID", "type": "uint256" },
+            { "indexed": false, "name": "_evidence", "type": "string" }
+          ],
+          "name": "MetaEvidence",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_transactionID", "type": "uint256" },
+            { "indexed": false, "name": "_amount", "type": "uint256" },
+            { "indexed": false, "name": "_party", "type": "address" }
+          ],
+          "name": "Payment",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_transactionID", "type": "uint256" },
+            { "indexed": false, "name": "_party", "type": "uint8" }
+          ],
+          "name": "HasToPayFee",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_evidenceGroupID", "type": "uint256" },
+            { "indexed": true, "name": "_party", "type": "address" },
+            { "indexed": false, "name": "_evidence", "type": "string" }
+          ],
+          "name": "Evidence",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_disputeID", "type": "uint256" },
+            { "indexed": false, "name": "_metaEvidenceID", "type": "uint256" },
+            { "indexed": false, "name": "_evidenceGroupID", "type": "uint256" }
+          ],
+          "name": "Dispute",
+          "type": "event"
+        },
+        {
+          "anonymous": false,
+          "inputs": [
+            { "indexed": true, "name": "_arbitrator", "type": "address" },
+            { "indexed": true, "name": "_disputeID", "type": "uint256" },
+            { "indexed": false, "name": "_ruling", "type": "uint256" }
+          ],
+          "name": "Ruling",
+          "type": "event"
+        }
+      ];
+
+      // Contract address
+      const CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
+      
+      // IPFS Gateway
+      const IPFS_GATEWAY = "https://cdn.kleros.link";
+
+      // DOM Elements
+      const connectWalletBtn = document.getElementById("connect-wallet");
+      const connectionStatus = document.getElementById("connection-status");
+      const walletAddressEl = document.getElementById("wallet-address");
+      const transactionIdInput = document.getElementById("transaction-id");
+      const fetchEventsBtn = document.getElementById("fetch-events");
+      const loadingEl = document.getElementById("loading");
+      const transactionDetailsEl = document.getElementById("transaction-details");
+      const transactionJsonEl = document.getElementById("transaction-json");
+      const eventsContainerEl = document.getElementById("events-container");
+      const eventsListEl = document.getElementById("events-list");
+      const metaEvidenceEl = document.getElementById("meta-evidence");
+      const metaEvidenceJsonEl = document.getElementById("meta-evidence-json");
+      const disputeDetailsEl = document.getElementById("dispute-details");
+      const disputeJsonEl = document.getElementById("dispute-json");
+      const errorMessageEl = document.getElementById("error-message");
+
+      // State
+      let provider;
+      let signer;
+      let contract;
+      let readOnlyContract;
+
+      // Check if ethers is loaded
+      if (typeof ethers === "undefined") {
+        console.error("Ethers library not loaded");
+        errorMessageEl.textContent = "Error: Ethers library not loaded. Please refresh the page.";
+        errorMessageEl.classList.remove("hidden");
+        throw new Error("Ethers library not loaded");
+      }
+
+      // Initialize read-only contract
+      function initReadOnlyContract() {
+        try {
+          const readOnlyProvider = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+          readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, readOnlyProvider);
+          console.log("Read-only contract initialized");
+          return true;
+        } catch (error) {
+          console.error("Error initializing read-only contract:", error);
+          errorMessageEl.textContent = `Error initializing contract: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+          return false;
+        }
+      }
+
+      // Initialize contract with wallet
+      async function initContract() {
+        if (!window.ethereum) {
+          alert("No Ethereum wallet detected. Please install MetaMask or another wallet.");
+          return;
+        }
+
+        try {
+          // Request account access
+          await window.ethereum.request({ method: "eth_requestAccounts" });
+
+          // Get provider and signer
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          signer = provider.getSigner();
+
+          // Get connected address
+          const address = await signer.getAddress();
+          walletAddressEl.textContent = `Connected Address: ${address}`;
+
+          // Update connection status
+          connectionStatus.textContent = "Connected";
+          connectionStatus.classList.remove("status-disconnected");
+          connectionStatus.classList.add("status-connected");
+
+          // Initialize contract with signer
+          contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+          console.log("Contract initialized with wallet");
+
+          // Hide any previous error messages
+          errorMessageEl.classList.add("hidden");
+        } catch (error) {
+          console.error("Error connecting wallet:", error);
+          errorMessageEl.textContent = `Error connecting wallet: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+        }
+      }
+
+      // Helper function to estimate block number from timestamp
+      async function estimateBlockFromTimestamp(timestamp) {
+        try {
+          // Create a provider for this specific call
+          const provider = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+
+          // Get the latest block for reference
+          const latestBlock = await provider.getBlockNumber();
+          const latestBlockData = await provider.getBlock(latestBlock);
+
+          // Calculate approximate blocks since the timestamp
+          // Ethereum blocks are ~13 seconds apart on average on mainnet
+          const secondsDiff = latestBlockData.timestamp - timestamp;
+          const estimatedBlocksAgo = Math.floor(secondsDiff / 13);
+
+          // Log the calculation details for debugging
+          console.log(`Latest block: ${latestBlock}, Latest timestamp: ${latestBlockData.timestamp}`);
+          console.log(`Transaction timestamp: ${timestamp}, Seconds difference: ${secondsDiff}`);
+          console.log(`Estimated blocks ago: ${estimatedBlocksAgo}`);
+
+          const estimatedBlock = Math.max(0, latestBlock - estimatedBlocksAgo);
+          console.log(`Final estimated block: ${estimatedBlock}`);
+
+          return estimatedBlock;
+        } catch (error) {
+          console.error("Error estimating block from timestamp:", error);
+          throw new Error(`Block estimation failed: ${error.message}`);
+        }
+      }
+
+      // Get transaction details
+      async function getTransaction(transactionId) {
+        const activeContract = contract || readOnlyContract;
+        if (!activeContract) {
+          throw new Error("Contract not initialized");
+        }
+
+        const tx = await activeContract.transactions(transactionId);
+        
+        // Format the transaction data
+        return {
+          id: transactionId,
+          sender: tx.sender,
+          receiver: tx.receiver,
+          amount: tx.amount.toString(),
+          timeoutPayment: tx.timeoutPayment.toNumber(),
+          disputeId: tx.disputeId.toNumber(),
+          senderFee: tx.senderFee.toString(),
+          receiverFee: tx.receiverFee.toString(),
+          lastInteraction: tx.lastInteraction.toNumber(),
+          status: tx.status
+        };
+      }
+
+      // Fetch events from contract
+      async function fetchEvents(transactionId, fromBlock, toBlock, eventType = null) {
+        const activeContract = contract || readOnlyContract;
+        if (!activeContract) {
+          throw new Error("Contract not initialized");
+        }
+
+        console.log(`Fetching ${eventType || 'all'} events for transaction ${transactionId} from block ${fromBlock} to ${toBlock}`);
+
+        // Create a provider for block information
+        const providerForBlocks = new ethers.providers.JsonRpcProvider("https://rpc.ankr.com/eth");
+
+        // Convert block numbers to hex strings for ethers.js
+        const fromBlockHex = ethers.utils.hexValue(fromBlock);
+        const toBlockHex = ethers.utils.hexValue(toBlock);
+
+        // Fetch all event types
+        const allEvents = [];
+
+        // If eventType is specified, only fetch that type of event
+        if (eventType === "payment" || eventType === null) {
+          try {
+              // Fetch Payment events
+              const paymentFilter = activeContract.filters.Payment();
+              const paymentEvents = await activeContract.queryFilter(paymentFilter, fromBlockHex, toBlockHex);
+              
+              // Filter for our transaction ID and process events
+              for (const event of paymentEvents) {
+                  if (event.args._transactionID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                          type: "payment",
+                          transactionId: event.args._transactionID.toString(),
+                          blockNumber: event.blockNumber,
+                          transactionHash: event.transactionHash,
+                          timestamp: block.timestamp,
+                          amount: event.args._amount.toString(),
+                          party: event.args._party
+                      });
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching Payment events:", error);
+          }
+        }
+
+        if (eventType === "hasToPayFee" || eventType === null) {
+          try {
+              // Fetch HasToPayFee events
+              const feeFilter = activeContract.filters.HasToPayFee();
+              const feeEvents = await activeContract.queryFilter(feeFilter, fromBlockHex, toBlockHex);
+              
+              // Filter for our transaction ID and process events
+              for (const event of feeEvents) {
+                  if (event.args._transactionID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                          type: "hasToPayFee",
+                          transactionId: event.args._transactionID.toString(),
+                          blockNumber: event.blockNumber,
+                          transactionHash: event.transactionHash,
+                          timestamp: block.timestamp,
+                          party: event.args._party
+                      });
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching HasToPayFee events:", error);
+          }
+        }
+
+        if (eventType === "dispute" || eventType === null) {
+          try {
+              // Fetch Dispute events
+              const disputeFilter = activeContract.filters.Dispute();
+              const disputeEvents = await activeContract.queryFilter(disputeFilter, fromBlockHex, toBlockHex);
+              
+              // Filter for our transaction ID and process events
+              for (const event of disputeEvents) {
+                  if (event.args._metaEvidenceID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                          type: "dispute",
+                          transactionId: event.args._metaEvidenceID.toString(),
+                          blockNumber: event.blockNumber,
+                          transactionHash: event.transactionHash,
+                          timestamp: block.timestamp,
+                          disputeId: event.args._disputeID.toNumber(),
+                          arbitrator: event.args._arbitrator,
+                          metaEvidenceId: event.args._metaEvidenceID.toString(),
+                          evidenceGroupId: event.args._evidenceGroupID.toString()
+                      });
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching Dispute events:", error);
+          }
+        }
+
+        if (eventType === "evidence" || eventType === null) {
+          try {
+              // Fetch Evidence events
+              const evidenceFilter = activeContract.filters.Evidence();
+              const evidenceEvents = await activeContract.queryFilter(evidenceFilter, fromBlockHex, toBlockHex);
+              
+              // Filter for our transaction ID and process events
+              for (const event of evidenceEvents) {
+                  if (event.args._evidenceGroupID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                          type: "evidence",
+                          transactionId: event.args._evidenceGroupID.toString(),
+                          blockNumber: event.blockNumber,
+                          transactionHash: event.transactionHash,
+                          timestamp: block.timestamp,
+                          party: event.args._party,
+                          evidence: event.args._evidence,
+                          arbitrator: event.args._arbitrator
+                      });
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching Evidence events:", error);
+          }
+        }
+
+        if (eventType === "metaEvidence" || eventType === null) {
+          try {
+              // Fetch MetaEvidence events
+              const metaEvidenceFilter = activeContract.filters.MetaEvidence();
+              const metaEvidenceEvents = await activeContract.queryFilter(metaEvidenceFilter, fromBlockHex, toBlockHex);
+              
+              // Filter for our transaction ID and process events
+              for (const event of metaEvidenceEvents) {
+                  if (event.args._metaEvidenceID.toString() === transactionId) {
+                      const block = await providerForBlocks.getBlock(event.blockNumber);
+                      allEvents.push({
+                          type: "metaEvidence",
+                          transactionId: event.args._metaEvidenceID.toString(),
+                          blockNumber: event.blockNumber,
+                          transactionHash: event.transactionHash,
+                          timestamp: block.timestamp,
+                          metaEvidenceId: event.args._metaEvidenceID.toString(),
+                          evidence: event.args._evidence
+                      });
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching MetaEvidence events:", error);
+          }
+        }
+
+        if (eventType === "ruling" || eventType === null) {
+          // For ruling events, we need to know the dispute ID
+          // Only fetch these when we're doing a full search (eventType is null)
+          // and we can get the dispute ID from the contract
+          try {
+              // Only fetch ruling events if we're doing a full search
+              if (eventType === null) {
+                  // Get the transaction details to find the dispute ID
+                  const tx = await activeContract.transactions(transactionId);
+                  const disputeId = tx.disputeId.toNumber();
+                  
+                  // Only proceed if there's an actual dispute
+                  if (disputeId > 0) {
+                      const rulingFilter = activeContract.filters.Ruling(null, disputeId);
+                      const rulingEvents = await activeContract.queryFilter(rulingFilter, fromBlockHex, toBlockHex);
+                      
+                      for (const event of rulingEvents) {
+                          const block = await providerForBlocks.getBlock(event.blockNumber);
+                          allEvents.push({
+                              type: "ruling",
+                              transactionId: transactionId,
+                              blockNumber: event.blockNumber,
+                              transactionHash: event.transactionHash,
+                              timestamp: block.timestamp,
+                              disputeId: event.args._disputeID.toNumber(),
+                              ruling: event.args._ruling.toNumber(),
+                              arbitrator: event.args._arbitrator
+                          });
+                      }
+                  }
+              }
+          } catch (error) {
+              console.warn("Error fetching Ruling events:", error);
+          }
+        }
+
+        // Sort events by block number
+        return allEvents.sort((a, b) => a.blockNumber - b.blockNumber);
+      }
+
+      // Fetch meta evidence data from IPFS
+      async function fetchFromIPFS(uri) {
+        if (!uri) return null;
+        
+        // Handle IPFS URIs
+        let url = uri;
+        if (uri.startsWith('/ipfs/')) {
+          url = `${IPFS_GATEWAY}${uri}`;
+        } else if (uri.startsWith('ipfs://')) {
+          url = `${IPFS_GATEWAY}/ipfs/${uri.slice(7)}`;
+        }
+        
+        try {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return await response.json();
+        } catch (error) {
+          console.error(`Error fetching from IPFS: ${error.message}`);
+          return null;
+        }
+      }
+
+      // Format event for display
+      function formatEvent(event, transaction) {
+        const date = new Date(event.timestamp * 1000).toLocaleString();
+        let description = "";
+        let icon = "";
+
+        switch (event.type) {
+          case "payment":
+            icon = "💰";
+            const amount = ethers.utils.formatEther(event.amount);
+            description = `${amount} ETH ${event.party === transaction?.sender ? "sent by sender" : "reimbursed by receiver"}`;
+            break;
+          case "dispute":
+            icon = "⚖️";
+            description = `Dispute #${event.disputeId} created`;
+            break;
+          case "evidence":
+            icon = "📄";
+            description = `Evidence submitted by ${event.party === transaction?.sender ? "sender" : "receiver"}`;
+            break;
+          case "ruling":
+            icon = "🏛️";
+            const rulingText = [
+              "Refused to Rule",
+              "Sender Wins",
+              "Receiver Wins",
+            ][event.ruling];
+            description = `Ruling: ${rulingText}`;
+            break;
+          case "metaEvidence":
+            icon = "📝";
+            description = "Transaction terms defined";
+            break;
+          case "hasToPayFee":
+            icon = "💸";
+            description = `Fee payment required by ${event.party === 0 ? "sender" : "receiver"}`;
+            break;
+          default:
+            icon = "❓";
+            description = "Unknown event";
+        }
+
+        return `
+        <div class="event-card">
+          <div>
+            <span class="event-type">${icon} ${event.type.charAt(0).toUpperCase() + event.type.slice(1)}</span>
+            <span class="timestamp">${date}</span>
+          </div>
+          <div>${description}</div>
+          <div>
+            <a href="https://etherscan.io/tx/${event.transactionHash}" target="_blank">
+              View on Etherscan
+            </a>
+          </div>
+        </div>
+      `;
+      }
+
+      // Fetch transaction data and events
+      async function fetchTransactionData() {
+        const transactionId = transactionIdInput.value.trim();
+
+        if (!transactionId) {
+          alert("Please enter a transaction ID");
+          return;
+        }
+
+        // Reset UI
+        errorMessageEl.classList.add("hidden");
+        transactionDetailsEl.classList.add("hidden");
+        eventsContainerEl.classList.add("hidden");
+        metaEvidenceEl.classList.add("hidden");
+        disputeDetailsEl.classList.add("hidden");
+        loadingEl.classList.remove("hidden");
+
+        try {
+          // Use the connected contract if available, otherwise use read-only contract
+          if (!contract && !readOnlyContract) {
+            // Try to initialize read-only contract if not already done
+            if (!initReadOnlyContract()) {
+              throw new Error("Failed to initialize contract. Please try again or connect wallet.");
+            }
+          }
+
+          // Get transaction details
+          const transaction = await getTransaction(transactionId);
+          transactionJsonEl.textContent = JSON.stringify(transaction, null, 2);
+          transactionDetailsEl.classList.remove("hidden");
+
+          // Calculate block range based on lastInteraction timestamp
+          if (!transaction.lastInteraction) {
+            throw new Error("Transaction has no lastInteraction timestamp. Cannot calculate block range.");
+          }
+
+          console.log(`Transaction lastInteraction timestamp: ${transaction.lastInteraction}`);
+
+          // Estimate the block number at the time of lastInteraction
+          const toBlock = await estimateBlockFromTimestamp(transaction.lastInteraction);
+
+          if (!toBlock && toBlock !== 0) {
+            throw new Error("Failed to estimate block number from timestamp.");
+          }
+
+          // Use toBlock as the upper bound and go back 10,000 blocks for the lower bound
+          const fromBlock = Math.max(0, toBlock - 10000);
+          console.log(`Estimated block range: ${fromBlock} to ${toBlock}`);
+
+          // Get all events with the calculated block range
+          const events = await fetchEvents(transactionId, fromBlock, toBlock);
+
+          // Display events
+          eventsListEl.innerHTML = "";
+          if (events.length > 0) {
+            events.forEach((event) => {
+              eventsListEl.innerHTML += formatEvent(event, transaction);
+            });
+            eventsContainerEl.classList.remove("hidden");
+          } else {
+            eventsListEl.innerHTML = "<div>No events found in the specified block range.</div>";
+            eventsContainerEl.classList.remove("hidden");
+          }
+
+          // Find meta-evidence events with extended search
+          let metaEvidenceEvents = events.filter(event => event.type === "metaEvidence");
+          
+          // If no meta-evidence events found, search in additional block ranges
+          if (metaEvidenceEvents.length === 0) {
+            console.log("No meta-evidence events found in initial block range. Starting extended search...");
+            
+            // Status update for user
+            metaEvidenceJsonEl.textContent = "Searching for meta-evidence events in extended block ranges...";
+            metaEvidenceEl.classList.remove("hidden");
+            
+            // Try up to 10 additional block ranges
+            const MAX_SEARCH_CYCLES = 10;
+            let currentFromBlock = fromBlock - 10000; // Start from 10,000 blocks before the initial range
+            
+            for (let cycle = 0; cycle < MAX_SEARCH_CYCLES; cycle++) {
+              if (currentFromBlock < 0) {
+                currentFromBlock = 0;
+              }
+              
+              const currentToBlock = currentFromBlock + 10000;
+              console.log(`Extended search cycle ${cycle + 1}/${MAX_SEARCH_CYCLES}: Blocks ${currentFromBlock} to ${currentToBlock}`);
+              
+              // Update status for user
+              metaEvidenceJsonEl.textContent = `Searching for meta-evidence events: Cycle ${cycle + 1}/${MAX_SEARCH_CYCLES}, Blocks ${currentFromBlock} to ${currentToBlock}...`;
+              
+              // Only search for meta-evidence events in this cycle
+              const cycleEvents = await fetchEvents(transactionId, currentFromBlock, currentToBlock, "metaEvidence");
+              
+              if (cycleEvents.length > 0) {
+                console.log(`Found ${cycleEvents.length} meta-evidence events in cycle ${cycle + 1}`);
+                metaEvidenceEvents = cycleEvents;
+                break;
+              }
+              
+              // Move to the next block range (10,000 blocks earlier)
+              currentFromBlock -= 10000;
+            }
+          }
+          
+          if (metaEvidenceEvents.length > 0) {
+            const metaEvidenceURI = metaEvidenceEvents[0]?.evidence;
+            console.log(`Found meta-evidence URI: ${metaEvidenceURI}`);
+            
+            metaEvidenceJsonEl.textContent = `Fetching meta-evidence data from IPFS: ${metaEvidenceURI}`;
+            const metaEvidenceData = await fetchFromIPFS(metaEvidenceURI);
+            
+            if (metaEvidenceData) {
+              metaEvidenceJsonEl.textContent = JSON.stringify(metaEvidenceData, null, 2);
+              
+              // Add the meta-evidence event to the events list if it wasn't in the original range
+              const existingEvent = events.find(e => e.type === "metaEvidence");
+              if (!existingEvent && metaEvidenceEvents[0]) {
+                eventsListEl.innerHTML += formatEvent(metaEvidenceEvents[0], transaction);
+              }
+            } else {
+              metaEvidenceJsonEl.textContent = "Failed to fetch meta-evidence data from IPFS.";
+            }
+          } else {
+            metaEvidenceJsonEl.textContent = "No meta-evidence events found after extended search (100,000 blocks).";
+          }
+          metaEvidenceEl.classList.remove("hidden");
+
+          // Display dispute details if exists
+          if (transaction.disputeId > 0) {
+            const disputeEvents = events.filter(event => event.type === "dispute");
+            const rulingEvents = events.filter(event => event.type === "ruling");
+            
+            const disputeInfo = {
+              id: transaction.disputeId,
+              transactionId: transactionId,
+              status: "Ongoing",
+              ruling: null,
+              events: {
+                dispute: disputeEvents[0] || null,
+                ruling: rulingEvents[0] || null
+              }
+            };
+            
+            // If we have a ruling event, update the status and ruling
+            if (rulingEvents.length > 0) {
+              disputeInfo.status = "Ruled";
+              disputeInfo.ruling = rulingEvents[0].ruling;
+            }
+            
+            disputeJsonEl.textContent = JSON.stringify(disputeInfo, null, 2);
+            disputeDetailsEl.classList.remove("hidden");
+          }
+        } catch (error) {
+          console.error("Error fetching transaction data:", error);
+          errorMessageEl.textContent = `Error: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+        } finally {
+          loadingEl.classList.add("hidden");
+        }
+      }
+
+      // Event listeners
+      connectWalletBtn.addEventListener("click", initContract);
+      fetchEventsBtn.addEventListener("click", fetchTransactionData);
+
+      // Initialize read-only contract on page load
+      initReadOnlyContract();
+    </script>
+  </body>
+</html> 

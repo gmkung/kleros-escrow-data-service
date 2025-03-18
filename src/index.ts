@@ -1,6 +1,9 @@
 // Export all types
 export * from "./types";
 
+// Export GraphQL response types
+// export type { SubgraphResponse, RulingResponse } from "./services/event";
+
 // Export all services (read functions)
 export * from "./services";
 

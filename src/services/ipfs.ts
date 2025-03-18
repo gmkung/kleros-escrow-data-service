@@ -102,7 +102,7 @@ export class IPFSService {
     fileTypeExtension?: string;
   }): Promise<string> => {
     const cid = await this.uploadJSONToIPFS(evidence);
-    return `/ipfs/${cid}`;
+    return `${cid}`;
   }
 
   /**
@@ -123,6 +123,6 @@ export class IPFSService {
     fileTypeExtension?: string;
   }): Promise<string> => {
     const cid = await this.uploadJSONToIPFS(metaEvidence);
-    return `/ipfs/${cid}`;
+    return `${cid}`;
   }
 }

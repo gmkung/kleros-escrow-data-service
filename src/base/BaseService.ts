@@ -1,5 +1,8 @@
 import { ethers } from "ethers";
 import { KlerosEscrowConfig } from "../types/config";
+import MultipleArbitrableTransactionABI from "../reference/MultipleArbitrableTransaction_ABI.json";
+
+const DEFAULT_CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
 
 /**
  * Base class for all Kleros Escrow services and actions
@@ -28,13 +31,13 @@ export abstract class BaseService {
         config.provider.networkId
       );
       this.isReadOnly = true;
-    } 
+    }
     // If a signer is provided, use it and its provider
     else if (signerOrProvider instanceof ethers.Signer) {
       this.signer = signerOrProvider;
       this.provider = signerOrProvider.provider!;
       this.isReadOnly = false;
-    } 
+    }
     // If a provider is provided, use it
     else {
       this.provider = signerOrProvider;
@@ -43,10 +46,27 @@ export abstract class BaseService {
 
     // Initialize the escrow contract with the appropriate signer or provider
     const contractProvider = this.signer || this.provider;
+    const contractAddress =
+      config.multipleArbitrableTransaction?.address || DEFAULT_CONTRACT_ADDRESS;
+    const contractABI =
+      config.multipleArbitrableTransaction?.abi || MultipleArbitrableTransactionABI;
+
+    console.log('Contract initialization:', {
+      address: contractAddress,
+      abiLength: contractABI.length,
+      networkId: config.provider.networkId,
+      isReadOnly: this.isReadOnly
+    });
+
     this.escrowContract = new ethers.Contract(
-      config.multipleArbitrableTransaction.address,
-      config.multipleArbitrableTransaction.abi,
+      contractAddress,
+      contractABI,
       contractProvider
+    );
+
+    // Verify contract initialization
+    console.log('Contract functions available:', 
+      Object.keys(this.escrowContract.functions).join(', ')
     );
   }
 
@@ -71,7 +91,9 @@ export abstract class BaseService {
    * @param abi The ABI to use for the arbitrator contract
    * @returns The arbitrator contract instance
    */
-  protected async getArbitratorContract(abi: string[]): Promise<ethers.Contract> {
+  protected async getArbitratorContract(
+    abi: string[]
+  ): Promise<ethers.Contract> {
     if (!this.arbitratorContract) {
       const arbitratorAddress = await this.getArbitratorAddress();
       const contractProvider = this.signer || this.provider;
@@ -98,7 +120,9 @@ export abstract class BaseService {
    */
   protected ensureCanWrite(): void {
     if (!this.canWrite()) {
-      throw new Error("This operation requires a signer. The service is in read-only mode.");
+      throw new Error(
+        "This operation requires a signer. The service is in read-only mode."
+      );
     }
   }
-} 
+}

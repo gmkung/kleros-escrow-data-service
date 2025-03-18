@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kleros Escrow Explorer - Simple Test</title>
+    <!-- Load ethers.js first -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    <style>
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        line-height: 1.6;
+        color: #333;
+      }
+      h1 {
+        color: #3e7bfa;
+        text-align: center;
+      }
+      button {
+        background-color: #3e7bfa;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+      button:hover {
+        background-color: #2a5cd7;
+      }
+      input {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .card {
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+      .event-card {
+        border-left: 4px solid #3e7bfa;
+        padding-left: 15px;
+        margin-bottom: 10px;
+      }
+      .status {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 14px;
+        font-weight: bold;
+        display: inline-block;
+      }
+      .status-connected {
+        background-color: #d4edda;
+        color: #155724;
+      }
+      .status-disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
+      pre {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        overflow-x: auto;
+        font-size: 14px;
+      }
+      .hidden {
+        display: none;
+      }
+      .event-type {
+        font-weight: bold;
+        margin-right: 10px;
+      }
+      .timestamp {
+        color: #666;
+        font-size: 14px;
+      }
+      .loading {
+        text-align: center;
+        padding: 20px;
+        font-style: italic;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Kleros Escrow Explorer - Simple Test</h1>
+
+    <div class="container">
+      <div class="card">
+        <h2>Wallet Connection</h2>
+        <div id="connection-status" class="status status-disconnected">
+          Disconnected
+        </div>
+        <button id="connect-wallet">Connect Wallet</button>
+        <div id="wallet-address"></div>
+      </div>
+
+      <div class="card">
+        <h2>Transaction Explorer</h2>
+        <input
+          type="text"
+          id="transaction-id"
+          placeholder="Enter Transaction ID"
+        />
+        <button id="fetch-events">Fetch Events</button>
+        <div id="loading" class="loading hidden">
+          Loading transaction data...
+        </div>
+
+        <div id="transaction-details" class="hidden">
+          <h3>Transaction Details</h3>
+          <pre id="transaction-json"></pre>
+        </div>
+
+        <div id="events-container" class="hidden">
+          <h3>Events</h3>
+          <div id="events-list"></div>
+        </div>
+
+        <div id="meta-evidence" class="hidden">
+          <h3>Meta Evidence</h3>
+          <pre id="meta-evidence-json"></pre>
+        </div>
+
+        <div id="dispute-details" class="hidden">
+          <h3>Dispute Details</h3>
+          <pre id="dispute-json"></pre>
+        </div>
+
+        <div id="error-message" class="hidden" style="color: red"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      // Import the Kleros Escrow Data Service directly
+      import { createKlerosEscrowClient } from "https://cdn.skypack.dev/kleros-escrow-data-service";
+
+      // DOM Elements
+      const connectWalletBtn = document.getElementById("connect-wallet");
+      const connectionStatus = document.getElementById("connection-status");
+      const walletAddressEl = document.getElementById("wallet-address");
+      const transactionIdInput = document.getElementById("transaction-id");
+      const fetchEventsBtn = document.getElementById("fetch-events");
+      const loadingEl = document.getElementById("loading");
+      const transactionDetailsEl = document.getElementById(
+        "transaction-details"
+      );
+      const transactionJsonEl = document.getElementById("transaction-json");
+      const eventsContainerEl = document.getElementById("events-container");
+      const eventsListEl = document.getElementById("events-list");
+      const metaEvidenceEl = document.getElementById("meta-evidence");
+      const metaEvidenceJsonEl = document.getElementById("meta-evidence-json");
+      const disputeDetailsEl = document.getElementById("dispute-details");
+      const disputeJsonEl = document.getElementById("dispute-json");
+      const errorMessageEl = document.getElementById("error-message");
+
+      // State
+      let provider;
+      let signer;
+      let klerosClient;
+      let readOnlyClient;
+
+      // Check if ethers is loaded
+      if (typeof ethers === "undefined") {
+        console.error("Ethers library not loaded");
+        errorMessageEl.textContent =
+          "Error: Ethers library not loaded. Please refresh the page.";
+        errorMessageEl.classList.remove("hidden");
+        throw new Error("Ethers library not loaded");
+      }
+
+      // Initialize read-only client
+      function initReadOnlyClient() {
+        try {
+          const config = {
+            provider: {
+              url: "https://rpc.ankr.com/eth",
+              networkId: 1, // Ethereum mainnet
+            },
+            multipleArbitrableTransaction: {
+              address: "0x0d67440946949FE293B45c52eFD8A9b3d51e2522",
+            },
+            ipfsGateway: "https://cdn.kleros.link",
+          };
+
+          readOnlyClient = createKlerosEscrowClient(config);
+          console.log("Read-only client initialized");
+          return true;
+        } catch (error) {
+          console.error("Error initializing read-only client:", error);
+          errorMessageEl.textContent = `Error initializing client: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+          return false;
+        }
+      }
+
+      // Initialize client with wallet
+      async function initClient() {
+        if (!window.ethereum) {
+          alert(
+            "No Ethereum wallet detected. Please install MetaMask or another wallet."
+          );
+          return;
+        }
+
+        try {
+          // Request account access
+          await window.ethereum.request({ method: "eth_requestAccounts" });
+
+          // Get provider and signer
+          provider = new ethers.providers.Web3Provider(window.ethereum);
+          signer = provider.getSigner();
+
+          // Get connected address
+          const address = await signer.getAddress();
+          walletAddressEl.textContent = `Connected Address: ${address}`;
+
+          // Update connection status
+          connectionStatus.textContent = "Connected";
+          connectionStatus.classList.remove("status-disconnected");
+          connectionStatus.classList.add("status-connected");
+
+          // Initialize Kleros client with signer
+          const config = {
+            provider: {
+              url: "https://rpc.ankr.com/eth",
+              networkId: 1, // Ethereum mainnet
+            },
+            multipleArbitrableTransaction: {
+              address: "0x0d67440946949FE293B45c52eFD8A9b3d51e2522",
+            },
+            ipfsGateway: "https://cdn.kleros.link",
+          };
+
+          klerosClient = createKlerosEscrowClient(config, signer);
+          console.log("Client initialized with wallet");
+
+          // Hide any previous error messages
+          errorMessageEl.classList.add("hidden");
+        } catch (error) {
+          console.error("Error connecting wallet:", error);
+          errorMessageEl.textContent = `Error connecting wallet: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+        }
+      }
+
+      // Helper function to estimate block number from timestamp
+      async function estimateBlockFromTimestamp(timestamp) {
+        try {
+          // Create a provider for this specific call
+          const provider = new ethers.providers.JsonRpcProvider(
+            "https://rpc.ankr.com/eth"
+          );
+
+          // Get the latest block for reference
+          const latestBlock = await provider.getBlockNumber();
+          const latestBlockData = await provider.getBlock(latestBlock);
+
+          // Calculate approximate blocks since the timestamp
+          // Ethereum blocks are ~13 seconds apart on average on mainnet
+          const secondsDiff = latestBlockData.timestamp - timestamp;
+          const estimatedBlocksAgo = Math.floor(secondsDiff / 13);
+
+          // Log the calculation details for debugging
+          console.log(
+            `Latest block: ${latestBlock}, Latest timestamp: ${latestBlockData.timestamp}`
+          );
+          console.log(
+            `Transaction timestamp: ${timestamp}, Seconds difference: ${secondsDiff}`
+          );
+          console.log(`Estimated blocks ago: ${estimatedBlocksAgo}`);
+
+          const estimatedBlock = Math.max(0, latestBlock - estimatedBlocksAgo);
+          console.log(`Final estimated block: ${estimatedBlock}`);
+
+          return estimatedBlock;
+        } catch (error) {
+          console.error("Error estimating block from timestamp:", error);
+          throw new Error(`Block estimation failed: ${error.message}`);
+        }
+      }
+
+      // Get event type
+      function getEventType(event) {
+        if ("_amount" in event && "_party" in event) {
+          return "payment";
+        } else if ("_disputeID" in event && "_evidenceGroupID" in event) {
+          return "dispute";
+        } else if (
+          "_evidence" in event &&
+          "_party" in event &&
+          "_evidenceGroupID" in event
+        ) {
+          return "evidence";
+        } else if ("_ruling" in event) {
+          return "ruling";
+        } else if ("_metaEvidenceID" in event && "_evidence" in event) {
+          return "metaEvidence";
+        }
+        return "unknown";
+      }
+
+      // Format event for display
+      function formatEvent(event, transaction) {
+        const eventType = getEventType(event);
+        const date = new Date(event.timestamp * 1000).toLocaleString();
+
+        let description = "";
+        let icon = "";
+
+        switch (eventType) {
+          case "payment":
+            icon = "💰";
+            const amount = ethers.utils.formatEther(event._amount);
+            description = `${amount} ETH ${event._party === transaction?.sender ? "sent by sender" : "reimbursed by receiver"}`;
+            break;
+          case "dispute":
+            icon = "⚖️";
+            description = `Dispute #${event._disputeID} created`;
+            break;
+          case "evidence":
+            icon = "📄";
+            description = `Evidence submitted by ${event._party === transaction?.sender ? "sender" : "receiver"}`;
+            break;
+          case "ruling":
+            icon = "🏛️";
+            const rulingText = [
+              "Refused to Rule",
+              "Sender Wins",
+              "Receiver Wins",
+            ][event._ruling];
+            description = `Ruling: ${rulingText}`;
+            break;
+          case "metaEvidence":
+            icon = "📝";
+            description = "Transaction terms defined";
+            break;
+          default:
+            icon = "❓";
+            description = "Unknown event";
+        }
+
+        return `
+        <div class="event-card">
+          <div>
+            <span class="event-type">${icon} ${eventType.charAt(0).toUpperCase() + eventType.slice(1)}</span>
+            <span class="timestamp">${date}</span>
+          </div>
+          <div>${description}</div>
+          <div>
+            <a href="https://etherscan.io/tx/${event.transactionHash}" target="_blank">
+              View on Etherscan
+            </a>
+          </div>
+        </div>
+      `;
+      }
+
+      // Fetch transaction data and events
+      async function fetchTransactionData() {
+        const transactionId = transactionIdInput.value.trim();
+
+        if (!transactionId) {
+          alert("Please enter a transaction ID");
+          return;
+        }
+
+        // Reset UI
+        errorMessageEl.classList.add("hidden");
+        transactionDetailsEl.classList.add("hidden");
+        eventsContainerEl.classList.add("hidden");
+        metaEvidenceEl.classList.add("hidden");
+        disputeDetailsEl.classList.add("hidden");
+        loadingEl.classList.remove("hidden");
+
+        try {
+          // Use the connected client if available, otherwise use read-only client
+          const client = klerosClient || readOnlyClient;
+
+          if (!client) {
+            // Try to initialize read-only client if not already done
+            if (!initReadOnlyClient()) {
+              throw new Error(
+                "Failed to initialize client. Please try again or connect wallet."
+              );
+            }
+          }
+
+          // Get transaction details
+          const transaction =
+            await client.services.transaction.getTransaction(transactionId);
+          transactionJsonEl.textContent = JSON.stringify(transaction, null, 2);
+          transactionDetailsEl.classList.remove("hidden");
+
+          // Calculate block range based on lastInteraction timestamp
+          if (!transaction.lastInteraction) {
+            throw new Error(
+              "Transaction has no lastInteraction timestamp. Cannot calculate block range."
+            );
+          }
+
+          console.log(
+            `Transaction lastInteraction timestamp: ${transaction.lastInteraction}`
+          );
+
+          // Estimate the block number at the time of lastInteraction
+          const toBlock = await estimateBlockFromTimestamp(
+            transaction.lastInteraction
+          );
+
+          if (!toBlock && toBlock !== 0) {
+            throw new Error("Failed to estimate block number from timestamp.");
+          }
+
+          // Use toBlock as the upper bound and go back 10,000 blocks for the lower bound
+          const fromBlock = Math.max(0, toBlock - 10000);
+          console.log(`Estimated block range: ${fromBlock} to ${toBlock}`);
+
+          // Create filter options using the new format
+          const filterOptions = {
+            fromBlock: fromBlock,
+            toBlock: toBlock,
+          };
+
+          // Get all events with the calculated block range
+          const events = await client.services.event.getEventsForTransaction(
+            transactionId,
+            filterOptions
+          );
+
+          // Sort events by timestamp
+          events.sort((a, b) => a.timestamp - b.timestamp);
+
+          // Display events
+          eventsListEl.innerHTML = "";
+          if (events.length > 0) {
+            events.forEach((event) => {
+              eventsListEl.innerHTML += formatEvent(event, transaction);
+            });
+            eventsContainerEl.classList.remove("hidden");
+          } else {
+            eventsListEl.innerHTML =
+              "<div>No events found in the specified block range.</div>";
+            eventsContainerEl.classList.remove("hidden");
+          }
+
+          // Get meta-evidence with the same block range
+          const metaEvidenceEvents =
+            await client.services.event.getMetaEvidenceEvents(
+              transactionId,
+              filterOptions
+            );
+
+          if (metaEvidenceEvents.length > 0) {
+            const metaEvidenceURI = metaEvidenceEvents[0]?.evidence;
+            const metaEvidenceData =
+              await client.services.ipfs.fetchFromIPFS(metaEvidenceURI);
+            metaEvidenceJsonEl.textContent = JSON.stringify(
+              metaEvidenceData,
+              null,
+              2
+            );
+            metaEvidenceEl.classList.remove("hidden");
+          } else {
+            metaEvidenceJsonEl.textContent =
+              "No meta-evidence events found in the specified block range.";
+            metaEvidenceEl.classList.remove("hidden");
+          }
+
+          // Get dispute details if exists
+          if (transaction.disputeId) {
+            const dispute =
+              await client.services.dispute.getDispute(transactionId);
+            disputeJsonEl.textContent = JSON.stringify(dispute, null, 2);
+            disputeDetailsEl.classList.remove("hidden");
+          }
+        } catch (error) {
+          console.error("Error fetching transaction data:", error);
+          errorMessageEl.textContent = `Error: ${error.message}`;
+          errorMessageEl.classList.remove("hidden");
+        } finally {
+          loadingEl.classList.add("hidden");
+        }
+      }
+
+      // Event listeners
+      connectWalletBtn.addEventListener("click", initClient);
+      fetchEventsBtn.addEventListener("click", fetchTransactionData);
+
+      // Initialize read-only client on page load
+      initReadOnlyClient();
+    </script>
+  </body>
+</html>

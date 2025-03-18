@@ -1,11 +1,20 @@
 {
   "name": "kleros-escrow-data-service",
-  "version": "0.1.0",
+  "version": "0.6.1",
   "description": "Data service for interacting with Kleros Escrow",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run build:esm",
+    "build:esm": "tsc --module esnext --outDir dist-esm && mv dist-esm/index.js dist/index.mjs && rm -rf dist-esm",
     "test": "jest",
     "prepublishOnly": "npm run build"
   },

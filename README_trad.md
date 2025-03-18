@@ -280,64 +280,134 @@ await klerosClient.actions.dispute.appeal({
 
 ### 9. Monitoring Events
 
-Monitor events to track the status of transactions:
+The library provides a single, efficient method to retrieve all events related to a transaction using GraphQL:
 
 ```typescript
 // Get all events for a transaction
-const events = await klerosClient.services.event.getEventsForTransaction("123");
-/* Returns: BaseEvent[] - Array of all events related to the transaction, sorted by block number
-   This includes payment events, dispute events, evidence events, etc. */
+const details = await klerosClient.services.event.getTransactionDetails("123");
 
-// Process events
-events.forEach(event => {
-  console.log(`Event at block ${event.blockNumber}: ${event.transactionHash}`);
-  
-  // You can check the event type and handle accordingly
-  if ('amount' in event && 'party' in event) {
-    // This is a payment event
-    console.log(`Payment of ${event.amount} made by ${event.party}`);
-  } else if ('disputeId' in event) {
-    // This is a dispute event
-    console.log(`Dispute ${event.disputeId} created for transaction ${event.transactionId}`);
-  }
+// The response includes all event types in structured arrays:
+const {
+  metaEvidences,  // Transaction metadata events
+  payments,       // Payment events
+  evidences,      // Evidence submission events
+  disputes,       // Dispute creation events
+  hasToPayFees,   // Fee payment requirement events
+  rulings         // Dispute ruling events (if disputes exist)
+} = details;
+
+// Example: Processing payment events
+payments.forEach(payment => {
+  console.log(
+    `Payment of ${payment._amount} wei by ${payment._party} at block ${payment.blockNumber}`
+  );
 });
 
-// You can also poll for new events periodically
-function setupEventPolling(transactionId, pollingInterval = 30000) {
-  let lastCheckedBlock = 0;
-  
-  const intervalId = setInterval(async () => {
-    try {
-      // Get events since the last checked block
-      const newEvents = await klerosClient.services.event.getEventsForTransaction(
-        transactionId, 
-        lastCheckedBlock
-      );
-      
-      if (newEvents.length > 0) {
-        console.log(`Found ${newEvents.length} new events`);
-        // Process new events
-        newEvents.forEach(event => {
-          // Handle each event type
-          console.log(`New event: ${event.transactionHash}`);
-          // Update the last checked block
-          lastCheckedBlock = Math.max(lastCheckedBlock, event.blockNumber);
-        });
-      }
-    } catch (error) {
-      console.error("Error polling for events:", error);
-    }
-  }, pollingInterval);
-  
-  // Return a function to stop polling
-  return () => clearInterval(intervalId);
+// Example: Processing evidence submissions
+evidences.forEach(evidence => {
+  console.log(
+    `Evidence ${evidence._evidence} submitted by ${evidence._party}`
+  );
+});
+
+// Example: Processing dispute rulings
+if (rulings.length > 0) {
+  rulings.forEach(ruling => {
+    console.log(
+      `Dispute ${ruling._disputeID} ruled ${ruling._ruling} at block ${ruling.blockNumber}`
+    );
+  });
 }
+```
 
-// Start polling for events
-const stopPolling = setupEventPolling("123");
+This GraphQL-based implementation replaces the previous event-specific methods with a more efficient, single-query approach that:
+- Reduces the number of network requests
+- Provides consistent data structure
+- Automatically handles relationships between events (e.g., disputes and rulings)
+- Includes all relevant blockchain metadata (timestamps, block numbers, transaction hashes)
 
-// Later, when you want to stop polling
-// stopPolling();
+#### Event Type Definitions
+
+Each event type in the response follows a specific structure:
+
+```typescript
+interface TransactionEvents {
+  // Meta Evidence Events - Transaction metadata
+  metaEvidences: {
+    id: string;                // Unique identifier
+    blockTimestamp: string;    // When the event was emitted
+    transactionHash: string;   // Transaction that emitted the event
+    _evidence: string;         // IPFS URI containing transaction metadata
+    blockNumber: string;       // Block number when emitted
+  }[];
+
+  // Payment Events - Funds transferred
+  payments: {
+    id: string;               // Unique identifier
+    _transactionID: string;   // Associated transaction ID
+    _amount: string;          // Amount in wei
+    _party: string;           // Address of the party involved
+    blockNumber: string;      // Block number when emitted
+    blockTimestamp: string;   // When the event was emitted
+    transactionHash: string;  // Transaction that emitted the event
+  }[];
+
+  // Evidence Events - Submitted proofs/documents
+  evidences: {
+    _arbitrator: string;      // Arbitrator contract address
+    _party: string;           // Address of the party submitting evidence
+    _evidence: string;        // IPFS URI containing evidence data
+    _evidenceGroupID: string; // Group ID for related evidence
+    blockNumber: string;      // Block number when emitted
+    transactionHash: string;  // Transaction that emitted the event
+  }[];
+
+  // Dispute Events - Created disputes
+  disputes: {
+    _arbitrator: string;      // Arbitrator contract address
+    _disputeID: string;       // Unique identifier for the dispute
+    blockNumber: string;      // Block number when emitted
+    blockTimestamp: string;   // When the event was emitted
+    _metaEvidenceID: string;  // Associated meta evidence ID
+    _evidenceGroupID: string; // Group ID for related evidence
+    transactionHash: string;  // Transaction that emitted the event
+  }[];
+
+  // Fee Payment Events - Required arbitration fees
+  hasToPayFees: {
+    _transactionID: string;   // Associated transaction ID
+    blockNumber: string;      // Block number when emitted
+    blockTimestamp: string;   // When the event was emitted
+    _party: string;           // Address of the party required to pay
+    transactionHash: string;  // Transaction that emitted the event
+  }[];
+
+  // Ruling Events - Dispute decisions (only present if disputes exist)
+  rulings: {
+    _arbitrator: string;      // Arbitrator contract address
+    _disputeID: string;       // ID of the dispute this ruling is for
+    blockNumber: string;      // Block number when emitted
+    blockTimestamp: string;   // When the event was emitted
+    _ruling: string;          // The ruling (0: Refused, 1: Sender, 2: Receiver)
+    transactionHash: string;  // Transaction that emitted the event
+  }[];
+}
+```
+
+#### Working with IPFS Data
+
+Events that reference IPFS URIs (metaEvidences and evidences) can be resolved using the IPFS service:
+
+```typescript
+// Fetching meta-evidence data
+const metaEvidence = details.metaEvidences[0];
+const metaEvidenceData = await klerosClient.services.ipfs.fetchFromIPFS(metaEvidence._evidence);
+/* Returns the JSON metadata about the transaction */
+
+// Fetching evidence data
+const evidence = details.evidences[0];
+const evidenceData = await klerosClient.services.ipfs.fetchFromIPFS(evidence._evidence);
+/* Returns the JSON data for the submitted evidence */
 ```
 
 ## Utility Functions
@@ -602,21 +672,69 @@ const subcourt = await klerosClient.services.arbitrator.getSubcourt();
 // Get all events for a transaction
 const events = await klerosClient.services.event.getEventsForTransaction("123");
 /* Returns: BaseEvent[] - Array of all events related to the transaction, sorted by block number
-   This includes payment events, dispute events, evidence events, etc. */
+   Each event has common properties plus specific event properties */
 
 // Get specific event types
 const paymentEvents = await klerosClient.services.event.getPaymentEvents("123");
-/* Returns: PaymentEvent[] - Array of payment events for the transaction */
+/* Returns: PaymentEvent[] - Array with structure:
+   {
+     transactionId: string,       // ID of the transaction
+     blockNumber: number,         // Block number when the event was emitted
+     transactionHash: string,     // Hash of the transaction that emitted the event
+     timestamp: number,           // Timestamp when the event was emitted
+     _transactionID: string,      // ID of the transaction (redundant)
+     _amount: string,             // Amount paid in wei
+     _party: string               // Address of the party who made/received the payment
+   } */
 
 const disputeEvents = await klerosClient.services.event.getDisputeEvents("123");
-/* Returns: DisputeEvent[] - Array of dispute events for the transaction */
+/* Returns: DisputeEvent[] - Array with structure:
+   {
+     transactionId: string,       // ID of the transaction
+     blockNumber: number,         // Block number when the event was emitted
+     transactionHash: string,     // Hash of the transaction that emitted the event
+     timestamp: number,           // Timestamp when the event was emitted
+     _arbitrator: string,         // Address of the arbitrator contract
+     _disputeID: string,          // ID of the created dispute
+     _metaEvidenceID: string,     // Same as transactionId
+     _evidenceGroupID: string     // ID of the evidence group (same as transactionId)
+   } */
 
-const evidenceEvents =
-  await klerosClient.services.event.getEvidenceEvents("123");
-/* Returns: EvidenceEvent[] - Array of evidence submission events for the transaction */
+const evidenceEvents = await klerosClient.services.event.getEvidenceEvents("123");
+/* Returns: EvidenceEvent[] - Array with structure:
+   {
+     transactionId: string,       // ID of the transaction
+     blockNumber: number,         // Block number when the event was emitted
+     transactionHash: string,     // Hash of the transaction that emitted the event
+     timestamp: number,           // Timestamp when the event was emitted
+     _arbitrator: string,         // Address of the arbitrator
+     _evidenceGroupID: string,    // ID of the evidence group (same as transactionId)
+     _party: string,              // Address of the party who submitted evidence
+     _evidence: string            // IPFS URI to the evidence
+   } */
 
 const rulingEvents = await klerosClient.services.event.getRulingEvents("123");
-/* Returns: RulingEvent[] - Array of ruling events for the transaction */
+/* Returns: RulingEvent[] - Array with structure:
+   {
+     transactionId: string,       // ID of the transaction
+     blockNumber: number,         // Block number when the event was emitted
+     transactionHash: string,     // Hash of the transaction that emitted the event
+     timestamp: number,           // Timestamp when the event was emitted
+     _arbitrator: string,         // Address of the arbitrator
+     _disputeID: string,          // ID of the dispute
+     _ruling: string              // The ruling given (0: Refused, 1: Sender wins, 2: Receiver wins)
+   } */
+
+const metaEvidenceEvents = await klerosClient.services.event.getMetaEvidenceEvents("123");
+/* Returns: MetaEvidenceEvent[] - Array with structure:
+   {
+     transactionId: string,       // ID of the transaction
+     blockNumber: number,         // Block number when the event was emitted
+     transactionHash: string,     // Hash of the transaction that emitted the event
+     timestamp: number,           // Timestamp when the event was emitted
+     _metaEvidenceID: string,     // ID of the meta-evidence (same as transactionId)
+     _evidence: string            // IPFS URI to the meta-evidence JSON
+   } */
 ```
 
 ### Gas Estimation Functions
