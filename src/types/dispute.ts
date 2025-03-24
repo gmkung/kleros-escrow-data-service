@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 /**
  * Enum representing possible rulings in a dispute
  */
@@ -42,9 +44,9 @@ export interface EvidenceSubmissionParams {
 /**
  * Parameters for paying arbitration fees
  */
-export interface ArbitrationFeePaymentParams {
+export interface DisputeParams {
   transactionId: string;
-  value: string; // Amount in wei
+  value: string; // Amount in Wei
 }
 
 /**
@@ -52,5 +54,5 @@ export interface ArbitrationFeePaymentParams {
  */
 export interface AppealParams {
   transactionId: string;
-  value: string; // Appeal fee in wei
+  value: string; // Amount in Wei
 } 

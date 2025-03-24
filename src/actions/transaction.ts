@@ -22,6 +22,7 @@ export class TransactionActions extends BaseService {
   /**
    * Creates a new escrow transaction
    * @param params Parameters for creating the transaction
+   * @param params.value Amount in Wei
    * @returns The transaction response and the transaction ID
    */
   createTransaction = async (params: CreateTransactionParams): Promise<{
@@ -34,7 +35,7 @@ export class TransactionActions extends BaseService {
       params.timeoutPayment,
       params.receiver,
       params.metaEvidence,
-      { value: ethers.utils.parseEther(params.value) }
+      { value: params.value } // Already in Wei
     );
 
     // Wait for the transaction to be mined
@@ -53,6 +54,7 @@ export class TransactionActions extends BaseService {
   /**
    * Pays the receiver (releases funds from escrow)
    * @param params Parameters for the payment
+   * @param params.amount Amount in Wei
    * @returns The transaction response
    */
   pay = async (
@@ -62,7 +64,7 @@ export class TransactionActions extends BaseService {
     
     const tx = await this.escrowContract.pay(
       params.transactionId,
-      ethers.utils.parseEther(params.amount)
+      params.amount // Already in Wei
     );
     
     return tx;
@@ -71,6 +73,7 @@ export class TransactionActions extends BaseService {
   /**
    * Reimburses the sender (returns funds from escrow)
    * @param params Parameters for the reimbursement
+   * @param params.amount Amount in Wei
    * @returns The transaction response
    */
   reimburse = async (
@@ -80,7 +83,7 @@ export class TransactionActions extends BaseService {
     
     const tx = await this.escrowContract.reimburse(
       params.transactionId,
-      ethers.utils.parseEther(params.amount)
+      params.amount // Already in Wei
     );
     
     return tx;
@@ -140,7 +143,7 @@ export class TransactionActions extends BaseService {
       params.timeoutPayment,
       params.receiver,
       params.metaEvidence,
-      { value: ethers.utils.parseEther(params.value) }
+      { value: params.value }
     );
 
     return gasEstimate;

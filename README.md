@@ -6,7 +6,7 @@ A lovable web app to explore and manage Kleros escrow transactions. View all tra
 
 ```bash
 # Install dependencies
-npm install kleros-escrow-data-service ethers@5 graphql-request graphql
+yarn add kleros-escrow-data-service ethers@5 graphql-request graphql
 ```
 
 ## 📦 Initialize Kleros Client

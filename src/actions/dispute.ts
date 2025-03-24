@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { ArbitrationFeePaymentParams, AppealParams } from "../types/dispute";
+import { DisputeParams, AppealParams } from "../types/dispute";
 import { KlerosEscrowConfig } from "../types/config";
 import { BaseService } from "../base/BaseService";
 
@@ -20,55 +20,59 @@ export class DisputeActions extends BaseService {
   }
 
   /**
-   * Pays arbitration fee as the sender to raise a dispute
-   * @param params Parameters for paying the arbitration fee
+   * Pays arbitration fee by sender
+   * @param params Parameters for paying arbitration fee
+   * @param params.value Amount in Wei
    * @returns The transaction response
    */
-  async payArbitrationFeeBySender(
-    params: ArbitrationFeePaymentParams
-  ): Promise<ethers.providers.TransactionResponse> {
+  payArbitrationFeeBySender = async (
+    params: DisputeParams
+  ): Promise<ethers.providers.TransactionResponse> => {
     this.ensureCanWrite();
     
     const tx = await this.escrowContract.payArbitrationFeeBySender(
       params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
+      { value: params.value } // Already in Wei
     );
-
+    
     return tx;
   }
 
   /**
-   * Pays arbitration fee as the receiver to raise a dispute
-   * @param params Parameters for paying the arbitration fee
+   * Pays arbitration fee by receiver
+   * @param params Parameters for paying arbitration fee
+   * @param params.value Amount in Wei
    * @returns The transaction response
    */
-  async payArbitrationFeeByReceiver(
-    params: ArbitrationFeePaymentParams
-  ): Promise<ethers.providers.TransactionResponse> {
+  payArbitrationFeeByReceiver = async (
+    params: DisputeParams
+  ): Promise<ethers.providers.TransactionResponse> => {
     this.ensureCanWrite();
     
     const tx = await this.escrowContract.payArbitrationFeeByReceiver(
       params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
+      { value: params.value } // Already in Wei
     );
-
+    
     return tx;
   }
 
   /**
    * Appeals a ruling
    * @param params Parameters for appealing
+   * @param params.value Appeal fee in Wei
    * @returns The transaction response
    */
-  async appeal(
+  appeal = async (
     params: AppealParams
-  ): Promise<ethers.providers.TransactionResponse> {
+  ): Promise<ethers.providers.TransactionResponse> => {
     this.ensureCanWrite();
     
-    const tx = await this.escrowContract.appeal(params.transactionId, {
-      value: ethers.utils.parseEther(params.value),
-    });
-
+    const tx = await this.escrowContract.appeal(
+      params.transactionId,
+      { value: params.value } // Already in Wei
+    );
+    
     return tx;
   }
 
@@ -78,12 +82,12 @@ export class DisputeActions extends BaseService {
    * @returns The estimated gas
    */
   async estimateGasForPayArbitrationFeeBySender(
-    params: ArbitrationFeePaymentParams
+    params: DisputeParams
   ): Promise<ethers.BigNumber> {
     const gasEstimate =
       await this.escrowContract.estimateGas.payArbitrationFeeBySender(
         params.transactionId,
-        { value: ethers.utils.parseEther(params.value) }
+        { value: params.value }
       );
 
     return gasEstimate;
@@ -95,12 +99,12 @@ export class DisputeActions extends BaseService {
    * @returns The estimated gas
    */
   async estimateGasForPayArbitrationFeeByReceiver(
-    params: ArbitrationFeePaymentParams
+    params: DisputeParams
   ): Promise<ethers.BigNumber> {
     const gasEstimate =
       await this.escrowContract.estimateGas.payArbitrationFeeByReceiver(
         params.transactionId,
-        { value: ethers.utils.parseEther(params.value) }
+        { value: params.value }
       );
 
     return gasEstimate;
@@ -114,7 +118,7 @@ export class DisputeActions extends BaseService {
   async estimateGasForAppeal(params: AppealParams): Promise<ethers.BigNumber> {
     const gasEstimate = await this.escrowContract.estimateGas.appeal(
       params.transactionId,
-      { value: ethers.utils.parseEther(params.value) }
+      { value: params.value }
     );
 
     return gasEstimate;

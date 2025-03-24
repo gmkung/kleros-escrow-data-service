@@ -25,7 +25,7 @@ export interface Transaction {
   id: string;
   sender: string;
   receiver: string;
-  amount: string;
+  amount: string; // Amount in Wei
   status: TransactionStatus;
   
   // Timing information
@@ -35,8 +35,8 @@ export interface Transaction {
   
   // Dispute information
   disputeId?: number;
-  senderFee: string;
-  receiverFee: string;
+  senderFee: string; // Amount in Wei
+  receiverFee: string; // Amount in Wei
   
   // Metadata
   metaEvidence?: string;
@@ -49,7 +49,7 @@ export interface CreateTransactionParams {
   receiver: string;
   timeoutPayment: number;
   metaEvidence: string;
-  value: string; // Amount in wei
+  value: string; // Amount in Wei
 }
 
 /**
@@ -57,5 +57,5 @@ export interface CreateTransactionParams {
  */
 export interface PaymentParams {
   transactionId: string;
-  amount: string;
+  amount: string; // Amount in Wei
 } 
