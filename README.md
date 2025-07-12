@@ -40,7 +40,7 @@ const tokenConfig = {
     networkId: 1,
   },
   multipleArbitrableTransactionToken: {
-    address: "0x[TOKEN_CONTRACT_ADDRESS]",
+    address: "0xBCf0d1AD453728F75e9cFD4358ED187598A45e6c",
   },
   ipfsGateway: "https://cdn.kleros.link",
   subgraphUrl: "https://api.studio.thegraph.com/query/74379/kleros-escrow-v1-erc20-subgraph/version/latest",

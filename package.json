@@ -1,6 +1,6 @@
 {
   "name": "kleros-escrow-data-service",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Data service for interacting with Kleros Escrow",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
