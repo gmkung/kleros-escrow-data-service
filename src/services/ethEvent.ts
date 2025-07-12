@@ -1,7 +1,7 @@
 import { GraphQLClient, gql } from "graphql-request";
 import type { SubgraphResponse, RulingResponse } from "../types/graphql";
 
-export class EventService {
+export class EthEventService {
   private client: GraphQLClient;
 
   constructor() {
@@ -10,9 +10,9 @@ export class EventService {
     );
   }
 
-  getAllMetaEvidence = async () => {
+  getAllEthMetaEvidence = async () => {
     const query = gql`
-      query GetAllMetaEvidence {
+      query GetAllEthMetaEvidence {
         metaEvidences(orderBy: _metaEvidenceID, orderDirection: desc) {
           id
           blockTimestamp
@@ -30,10 +30,10 @@ export class EventService {
     return response.metaEvidences;
   };
 
-  getTransactionDetails = async (transactionId: string) => {
+  getEthTransactionDetails = async (transactionId: string) => {
     // First query to get all transaction-related data
     const query = gql`
-      query GetTransactionDetails($transactionId: BigInt!) {
+      query GetEthTransactionDetails($transactionId: BigInt!) {
         metaEvidences(where: { _metaEvidenceID: $transactionId }) {
           id
           blockTimestamp
@@ -115,4 +115,4 @@ export class EventService {
       rulings,
     };
   };
-}
+} 

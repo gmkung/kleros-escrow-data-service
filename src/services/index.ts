@@ -1,6 +1,8 @@
 // Export all services
-export { TransactionService } from "./transaction";
+export { EthTransactionService } from "./ethTransaction";
+export { TokenTransactionService } from "./tokenTransaction";
 export { DisputeService } from "./dispute";
 export { ArbitratorService } from "./arbitrator";
 export { IPFSService } from "./ipfs";
-export { EventService } from "./event"; 
+export { EthEventService } from "./ethEvent";
+export { TokenEventService } from "./tokenEvent"; 

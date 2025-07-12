@@ -1,11 +1,11 @@
 //read/listen imports
 import { ethers } from "ethers";
 import {
-  TransactionService,
+  EthTransactionService,
   DisputeService,
   ArbitratorService,
   IPFSService,
-  EventService
+  EthEventService
 } from "../services";
 import { KlerosEscrowConfig } from "../types";
 import { TransactionActions, DisputeActions, EvidenceActions } from "../actions";
@@ -18,17 +18,17 @@ const DEFAULT_CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
 const DEFAULT_IPFS_GATEWAY = "https://cdn.kleros.link";
 
 /**
- * Client for interacting with Kleros Escrow services
+ * Client for interacting with Kleros Escrow ETH services
  */
-export class KlerosEscrowClient {
+export class KlerosEscrowEthClient {
   /**
-   * Services for reading data
+   * Services for reading ETH transaction data
    */
   readonly services: {
-    transaction: TransactionService;
+    ethTransaction: EthTransactionService;
     dispute: DisputeService;
     arbitrator: ArbitratorService;
-    event: EventService;
+    ethEvent: EthEventService;
     ipfs: IPFSService;
   };
 
@@ -42,7 +42,7 @@ export class KlerosEscrowClient {
   };
 
   /**
-   * Creates a new KlerosEscrowClient
+   * Creates a new KlerosEscrowEthClient
    * @param config The Kleros Escrow configuration
    * @param signer Optional signer for write operations
    */
@@ -51,18 +51,18 @@ export class KlerosEscrowClient {
     signer?: ethers.Signer
   ) {
     // Ensure the config has the necessary contract configuration
-    if (!this.config.multipleArbitrableTransaction) {
-      this.config.multipleArbitrableTransaction = {
+    if (!this.config.multipleArbitrableTransactionEth) {
+      this.config.multipleArbitrableTransactionEth = {
         address: DEFAULT_CONTRACT_ADDRESS,
         abi: MultipleArbitrableTransactionABI,
       };
     } else {
       // Use defaults if not provided
-      this.config.multipleArbitrableTransaction.address =
-        this.config.multipleArbitrableTransaction.address ||
+      this.config.multipleArbitrableTransactionEth.address =
+        this.config.multipleArbitrableTransactionEth.address ||
         DEFAULT_CONTRACT_ADDRESS;
-      this.config.multipleArbitrableTransaction.abi =
-        this.config.multipleArbitrableTransaction.abi ||
+      this.config.multipleArbitrableTransactionEth.abi =
+        this.config.multipleArbitrableTransactionEth.abi ||
         MultipleArbitrableTransactionABI;
     }
 
@@ -73,10 +73,10 @@ export class KlerosEscrowClient {
 
     // Initialize all services
     this.services = {
-      transaction: new TransactionService(this.config),
+      ethTransaction: new EthTransactionService(this.config),
       dispute: new DisputeService(this.config),
       arbitrator: new ArbitratorService(this.config),
-      event: new EventService(),
+      ethEvent: new EthEventService(),
       ipfs: new IPFSService(this.config.ipfsGateway || DEFAULT_IPFS_GATEWAY),
     };
 
@@ -107,12 +107,12 @@ export class KlerosEscrowClient {
   }
 
   /**
-   * Convenience method to get a transaction by ID
+   * Convenience method to get an ETH transaction by ID
    * @param transactionId The ID of the transaction to fetch
-   * @returns The transaction data
+   * @returns The ETH transaction data
    */
-  async getTransaction(transactionId: string) {
-    return this.services.transaction.getTransaction(transactionId);
+  async getEthTransaction(transactionId: string) {
+    return this.services.ethTransaction.getEthTransaction(transactionId);
   }
 
   /**
@@ -141,8 +141,29 @@ export class KlerosEscrowClient {
     return this.services.ipfs.fetchFromIPFS(path);
   }
 
-  // Get all transaction details from subgraph
-  public async getTransactionDetails(transactionId: string) {
-    return this.services.event.getTransactionDetails(transactionId);
+  /**
+   * Get all ETH transaction details from subgraph
+   * @param transactionId The transaction ID
+   * @returns Combined ETH transaction details with events
+   */
+  async getEthTransactionDetails(transactionId: string) {
+    return this.services.ethEvent.getEthTransactionDetails(transactionId);
   }
-}
+
+  /**
+   * Get all ETH meta evidence from subgraph
+   * @returns Array of all ETH meta evidence
+   */
+  async getAllEthMetaEvidence() {
+    return this.services.ethEvent.getAllEthMetaEvidence();
+  }
+
+  /**
+   * Get ETH transactions by address
+   * @param address The address to get transactions for
+   * @returns Array of ETH transactions for the address
+   */
+  async getEthTransactionsByAddress(address: string) {
+    return this.services.ethTransaction.getEthTransactionsByAddress(address);
+  }
+} 

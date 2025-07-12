@@ -12,7 +12,7 @@ export interface ProviderConfig {
  */
 export interface ContractConfig {
   address: string;
-  abi: any;
+  abi?: any; // Optional - clients will use default ABIs if not provided
 }
 
 /**
@@ -20,7 +20,9 @@ export interface ContractConfig {
  */
 export interface KlerosEscrowConfig {
   provider: ProviderConfig;
-  multipleArbitrableTransaction?: ContractConfig;
+  multipleArbitrableTransactionEth?: ContractConfig;
+  multipleArbitrableTransactionToken?: ContractConfig;
   arbitrator?: ContractConfig;
   ipfsGateway?: string;
+  subgraphUrl?: string;
 } 

@@ -1,5 +1,6 @@
 // Export all types from the individual files
 export * from './transaction';
+export * from './token';
 export * from './dispute';
 export * from './events';
 export * from './arbitrator';

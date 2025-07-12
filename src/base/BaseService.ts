@@ -47,9 +47,9 @@ export abstract class BaseService {
     // Initialize the escrow contract with the appropriate signer or provider
     const contractProvider = this.signer || this.provider;
     const contractAddress =
-      config.multipleArbitrableTransaction?.address || DEFAULT_CONTRACT_ADDRESS;
+      config.multipleArbitrableTransactionEth?.address || DEFAULT_CONTRACT_ADDRESS;
     const contractABI =
-      config.multipleArbitrableTransaction?.abi || MultipleArbitrableTransactionABI;
+      config.multipleArbitrableTransactionEth?.abi || MultipleArbitrableTransactionABI;
 
     console.log('Contract initialization:', {
       address: contractAddress,

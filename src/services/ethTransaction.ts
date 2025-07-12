@@ -4,11 +4,11 @@ import { KlerosEscrowConfig } from "../types/config";
 import { BaseService } from "../base/BaseService";
 
 /**
- * Service for reading transaction data from the Kleros Escrow contract
+ * Service for reading ETH transaction data from the Kleros Escrow contract
  */
-export class TransactionService extends BaseService {
+export class EthTransactionService extends BaseService {
   /**
-   * Creates a new TransactionService instance
+   * Creates a new EthTransactionService instance
    * @param config The Kleros Escrow configuration
    * @param provider Optional provider for read operations
    */
@@ -20,11 +20,11 @@ export class TransactionService extends BaseService {
   }
 
   /**
-   * Gets a transaction by its ID
+   * Gets an ETH transaction by its ID
    * @param transactionId The ID of the transaction to fetch
-   * @returns The transaction data
+   * @returns The ETH transaction data
    */
-  getTransaction = async (transactionId: string): Promise<Transaction> => {
+  getEthTransaction = async (transactionId: string): Promise<Transaction> => {
     const tx = await this.escrowContract.transactions(transactionId);
 
     return {
@@ -44,11 +44,11 @@ export class TransactionService extends BaseService {
   };
 
   /**
-   * Gets all transactions for a specific address
+   * Gets all ETH transactions for a specific address
    * @param address The address to get transactions for
-   * @returns Array of transactions where the address is sender or receiver
+   * @returns Array of ETH transactions where the address is sender or receiver
    */
-  getTransactionsByAddress = async (
+  getEthTransactionsByAddress = async (
     address: string
   ): Promise<Transaction[]> => {
     const transactionIds =
@@ -56,7 +56,7 @@ export class TransactionService extends BaseService {
 
     const transactions: Transaction[] = [];
     for (const id of transactionIds) {
-      const tx = await this.getTransaction(id.toString());
+      const tx = await this.getEthTransaction(id.toString());
       transactions.push(tx);
     }
 
@@ -64,21 +64,21 @@ export class TransactionService extends BaseService {
   };
 
   /**
-   * Gets the total number of transactions in the contract
-   * @returns The count of transactions
+   * Gets the total number of ETH transactions in the contract
+   * @returns The count of ETH transactions
    */
-  getTransactionCount = async (): Promise<number> => {
+  getEthTransactionCount = async (): Promise<number> => {
     const count = await this.escrowContract.getCountTransactions();
     return count.toNumber();
   };
 
   /**
-   * Checks if a transaction can be executed (timeout has passed)
+   * Checks if an ETH transaction can be executed (timeout has passed)
    * @param transactionId The ID of the transaction to check
-   * @returns True if the transaction can be executed
+   * @returns True if the ETH transaction can be executed
    */
-  canExecuteTransaction = async (transactionId: string): Promise<boolean> => {
-    const tx = await this.getTransaction(transactionId);
+  canExecuteEthTransaction = async (transactionId: string): Promise<boolean> => {
+    const tx = await this.getEthTransaction(transactionId);
     const currentTime = Math.floor(Date.now() / 1000);
 
     return (
@@ -98,7 +98,7 @@ export class TransactionService extends BaseService {
     canSenderTimeOut: boolean;
     canReceiverTimeOut: boolean;
   }> => {
-    const tx = await this.getTransaction(transactionId);
+    const tx = await this.getEthTransaction(transactionId);
     const currentTime = Math.floor(Date.now() / 1000);
     const feeTimeout = await this.escrowContract.feeTimeout();
 
@@ -128,4 +128,4 @@ export class TransactionService extends BaseService {
 
     return statusMap[status] || TransactionStatus.NoDispute;
   };
-}
+} 
