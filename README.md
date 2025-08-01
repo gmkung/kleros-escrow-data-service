@@ -21,7 +21,7 @@ const ethConfig = {
     networkId: 1, // Ethereum mainnet
   },
   multipleArbitrableTransactionEth: {
-    address: "0x0d67440946949FE293B45c52eFD8A9b3d51e2522",
+    address: "0x0d67440946949FE293B45c52eFD8A9b3d51e2522", // Optional - has default
   },
   ipfsGateway: "https://cdn.kleros.link",
   subgraphUrl: "https://api.studio.thegraph.com/query/74379/kleros-escrow-v1/version/latest",
@@ -40,7 +40,7 @@ const tokenConfig = {
     networkId: 1,
   },
   multipleArbitrableTransactionToken: {
-    address: "0xBCf0d1AD453728F75e9cFD4358ED187598A45e6c",
+    address: "0xBCf0d1AD453728F75e9cFD4358ED187598A45e6c", // Optional - has default
   },
   ipfsGateway: "https://cdn.kleros.link",
   subgraphUrl: "https://api.studio.thegraph.com/query/74379/kleros-escrow-v1-erc20-subgraph/version/latest",
@@ -59,13 +59,44 @@ const ethClientWithSigner = createKlerosEscrowEthClient(ethConfig, signer);
 const tokenClientWithSigner = createKlerosEscrowTokenClient(tokenConfig, signer);
 ```
 
-## 🔍 Core Functions & Types
+## 🔍 Complete API Reference
 
-### 1. ETH Transactions
+### 1. ETH Client Methods
 
-#### Get All ETH Transactions
+#### Client Creation
 ```typescript
-const allEthTransactions = await ethClient.services.ethEvent.getAllEthMetaEvidence();
+const ethClient = createKlerosEscrowEthClient(config, signer?);
+```
+
+#### Core ETH Transaction Methods
+```typescript
+// Get ETH transaction by ID
+const ethTransaction = await ethClient.getEthTransaction(transactionId);
+
+interface Transaction {
+  id: string;
+  sender: string;
+  receiver: string;
+  amount: string; // Amount in Wei
+  status: TransactionStatus;
+  timeoutPayment: number;
+  lastInteraction: number;
+  createdAt: number;
+  disputeId?: number;
+  senderFee: string; // Amount in Wei
+  receiverFee: string; // Amount in Wei
+  metaEvidence?: string;
+}
+
+// Get ETH transactions by address
+const ethTransactions = await ethClient.getEthTransactionsByAddress(address);
+// Returns: Transaction[]
+```
+
+#### ETH Event/Subgraph Methods
+```typescript
+// Get all ETH meta evidence from subgraph
+const allEthMetaEvidence = await ethClient.getAllEthMetaEvidence();
 
 interface MetaEvidenceEvent {
   id: string;
@@ -75,84 +106,11 @@ interface MetaEvidenceEvent {
   blockNumber: string;
   _metaEvidenceID: string;
 }
-```
 
-#### Get ETH Transaction Details
-```typescript
-const ethDetails = await ethClient.services.ethEvent.getEthTransactionDetails(transactionId);
-```
+// Get complete ETH transaction details with all events
+const ethDetails = await ethClient.getEthTransactionDetails(transactionId);
 
-### 2. Token Transactions
-
-#### Get All Token Transactions
-```typescript
-const allTokenTransactions = await tokenClient.services.tokenEvent.getAllTokenTransactions();
-
-interface TokenTransaction {
-  id: string;
-  blockTimestamp: string;
-  transactionHash: string;
-  _evidence: string;
-  blockNumber: string;
-  _metaEvidenceID: string;
-  _token: string; // ERC20 token contract address
-}
-```
-
-#### Get Token Transaction Details
-```typescript
-const tokenDetails = await tokenClient.services.tokenEvent.getTokenTransactionDetails(transactionId);
-```
-
-#### Get Transactions by Token Contract
-```typescript
-const usdcTransactions = await tokenClient.services.tokenEvent.getTransactionsByToken(
-  "0xA0b86a33E6441000000"
-);
-```
-
-#### Enhanced Token Transaction (with token info)
-```typescript
-const enhancedTx = await tokenClient.getEnhancedTokenTransaction(transactionId);
-
-interface EnhancedTokenTransaction {
-  transaction: TokenTransaction;
-  metaEvidence: MetaEvidence;
-  tokenInfo: {
-    name: string;
-    symbol: string;
-    decimals: number;
-  };
-}
-```
-
-### 3. Shared Types
-
-#### IPFS Meta Evidence
-```typescript
-interface MetaEvidence {
-  category: string;
-  title: string;
-  description: string;
-  question: string;
-  rulingOptions: {
-    type: string;
-    titles: string[];
-    descriptions: string[];
-  };
-  subCategory?: string;
-  sender?: string;
-  receiver?: string;
-  amount?: string;
-  timeout?: number;
-  fileURI?: string;
-  fileTypeExtension?: string;
-}
-```
-
-#### Transaction Events
-```typescript
-interface TransactionEvents {
+interface TransactionDetails {
   metaEvidences: MetaEvidenceEvent[];
   payments: PaymentEvent[];
   evidences: EvidenceEvent[];
@@ -161,6 +119,467 @@ interface TransactionEvents {
   rulings: RulingEvent[];
 }
 ```
+
+### 2. Token Client Methods
+
+#### Client Creation
+```typescript
+const tokenClient = createKlerosEscrowTokenClient(config, signer?);
+```
+
+#### Core Token Transaction Methods
+```typescript
+// Get token transaction by ID
+const tokenTransaction = await tokenClient.getTokenTransaction(transactionId);
+
+interface TokenTransaction {
+  id: string;
+  sender: string;
+  receiver: string;
+  amount: string; // Amount in token's smallest unit
+  token: string; // ERC20 token contract address
+  status: TokenTransactionStatus;
+  timeoutPayment: number;
+  lastInteraction: number;
+  createdAt: number;
+  disputeId?: number;
+  senderFee: string; // Amount in Wei (for arbitration fees)
+  receiverFee: string; // Amount in Wei (for arbitration fees)
+  metaEvidence?: string;
+}
+
+// Get token transactions by address
+const tokenTransactions = await tokenClient.getTransactionsByAddress(address);
+// Returns: TokenTransaction[]
+
+// Get token information
+const tokenInfo = await tokenClient.getTokenInfo(tokenAddress);
+
+interface TokenInfo {
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+```
+
+#### Token Event/Subgraph Methods
+```typescript
+// Get all token meta evidence from subgraph
+const allTokenMetaEvidence = await tokenClient.services.tokenEvent.getAllTokenMetaEvidence();
+
+interface MetaEvidenceEvent {
+  id: string;
+  blockTimestamp: string;
+  transactionHash: string;
+  _evidence: string;
+  blockNumber: string;
+  _metaEvidenceID: string;
+  _token?: string; // ERC20 token contract address (for token transactions)
+}
+
+// Get all token transactions from subgraph
+const allTokenTransactions = await tokenClient.getAllTokenTransactions();
+
+interface TokenSubgraphTransaction {
+  id: string;
+  _transactionID: string;
+  _sender: string;
+  _receiver: string;
+  _token: string;
+  _amount: string;
+  blockNumber: string;
+  blockTimestamp: string;
+  transactionHash: string;
+}
+
+// Get token transaction details with all events
+const tokenDetails = await tokenClient.getTokenTransactionDetails(transactionId);
+// Returns: TransactionDetails (same as ETH)
+
+// Get token transactions by address from subgraph
+const tokenTxByAddress = await tokenClient.getTokenTransactionsByAddress(address);
+// Returns: TokenSubgraphTransaction[]
+
+// Get transactions by token contract
+const tokenTxByContract = await tokenClient.getTransactionsByToken(tokenAddress);
+// Returns: TokenSubgraphTransaction[]
+
+// Get enhanced token transaction (contract + subgraph + token info)
+const enhancedTx = await tokenClient.getEnhancedTokenTransaction(transactionId);
+
+interface EnhancedTokenTransaction extends TokenTransaction {
+  tokenInfo?: TokenInfo;
+  events: TransactionDetails;
+}
+```
+
+### 3. Shared Client Methods
+
+Both ETH and Token clients have these common methods:
+
+```typescript
+// Dispute methods
+const dispute = await client.getDispute(transactionId);
+
+interface Dispute {
+  id: number;
+  transactionId: string;
+  status: DisputeStatus;
+  ruling?: Ruling;
+  arbitrator: string;
+  arbitratorExtraData: string;
+  evidenceGroupId: string;
+  appealPeriodStart?: number;
+  appealPeriodEnd?: number;
+}
+
+// Arbitrator methods
+const arbitrator = await client.getArbitrator();
+
+interface Arbitrator {
+  address: string;
+  arbitrationCost: string;
+  appealCost: string;
+}
+
+// IPFS methods
+const ipfsData = await client.fetchFromIPFS(ipfsPath);
+// Returns: any (parsed JSON data)
+
+// Configuration
+const config = client.getConfig();
+// Returns: KlerosEscrowConfig
+
+// Check write capabilities
+const hasWriteAccess = client.canWrite();
+// Returns: boolean (true if client was created with a signer)
+```
+
+### 4. Write Operations (Actions)
+
+When either client is created with a signer, these write methods are available through the `actions` property. Both ETH and Token clients now support full write capabilities.
+
+#### ETH Client Actions
+```typescript
+// Create ETH transaction
+const result = await ethClient.actions.transaction.createTransaction({
+  receiver: "0x...",
+  timeoutPayment: 86400, // 24 hours
+  metaEvidence: "ipfs://...",
+  value: "1000000000000000000" // 1 ETH in Wei
+});
+
+interface CreateTransactionResult {
+  transactionResponse: ethers.providers.TransactionResponse;
+  transactionId: string;
+}
+
+// Payment actions
+await ethClient.actions.transaction.pay({
+  transactionId: "1",
+  amount: "1000000000000000000" // Wei
+});
+
+await ethClient.actions.transaction.reimburse({
+  transactionId: "1",
+  amount: "1000000000000000000" // Wei
+});
+
+// Execution
+await ethClient.actions.transaction.executeTransaction(transactionId);
+await ethClient.actions.transaction.timeOutBySender(transactionId);
+await ethClient.actions.transaction.timeOutByReceiver(transactionId);
+
+// Dispute actions
+await ethClient.actions.dispute.payArbitrationFeeBySender({
+  transactionId: "1",
+  value: "1000000000000000" // Wei
+});
+
+await ethClient.actions.dispute.payArbitrationFeeByReceiver({
+  transactionId: "1",
+  value: "1000000000000000" // Wei
+});
+
+await ethClient.actions.dispute.appeal({
+  transactionId: "1",
+  value: "2000000000000000" // Wei
+});
+
+// Evidence actions
+await ethClient.actions.evidence.submitEvidence({
+  transactionId: "1",
+  evidence: "ipfs://..." // IPFS URI
+});
+
+// Gas estimation
+const gasEstimate = await ethClient.actions.transaction.estimateGasForCreateTransaction(params);
+// Returns: ethers.BigNumber
+
+// Check if client has write capabilities
+if (ethClient.canWrite()) {
+  // Client has actions available
+}
+```
+
+#### Token Client Actions
+
+Token client now supports the same write operations as ETH client when created with a signer:
+
+```typescript
+// Create token transaction (requires prior token approval)
+const result = await tokenClient.actions.transaction.createTransaction({
+  receiver: "0x...",
+  timeoutPayment: 86400, // 24 hours
+  metaEvidence: "ipfs://...",
+  amount: "1000000000000000000", // Token amount in smallest unit
+  tokenAddress: "0x..." // ERC20 token contract address
+});
+
+// Payment actions (same interface as ETH client)
+await tokenClient.actions.transaction.pay({
+  transactionId: "1",
+  amount: "1000000000000000000" // Token amount
+});
+
+await tokenClient.actions.transaction.reimburse({
+  transactionId: "1", 
+  amount: "1000000000000000000" // Token amount
+});
+
+// Execution and timeout actions
+await tokenClient.actions.transaction.executeTransaction(transactionId);
+await tokenClient.actions.transaction.timeOutBySender(transactionId);
+await tokenClient.actions.transaction.timeOutByReceiver(transactionId);
+
+// Dispute actions (arbitration fees paid in ETH)
+await tokenClient.actions.dispute.payArbitrationFeeBySender({
+  transactionId: "1",
+  value: "1000000000000000" // Wei (arbitration fees always in ETH)
+});
+
+await tokenClient.actions.dispute.payArbitrationFeeByReceiver({
+  transactionId: "1",
+  value: "1000000000000000" // Wei
+});
+
+await tokenClient.actions.dispute.appeal({
+  transactionId: "1",
+  value: "2000000000000000" // Wei
+});
+
+// Evidence actions
+await tokenClient.actions.evidence.submitEvidence({
+  transactionId: "1",
+  evidence: "ipfs://..." // IPFS URI
+});
+
+// Check write capabilities
+if (tokenClient.canWrite()) {
+  // Token client has full actions available
+}
+```
+
+### 5. IPFS Data Structures
+
+#### Meta Evidence (from IPFS)
+```typescript
+interface MetaEvidence {
+  title: string;
+  description: string;
+  category: string;
+  question: string;
+  rulingOptions: {
+    titles: string[];
+    descriptions: string[];
+  };
+  fileURI?: string;
+  fileTypeExtension?: string;
+}
+
+// Upload meta evidence to IPFS
+const ipfsUri = await client.services.ipfs.uploadMetaEvidence({
+  title: "Escrow Transaction",
+  description: "Payment for services",
+  category: "Service",
+  question: "Should the receiver get the payment?",
+  rulingOptions: {
+    titles: ["Refund Sender", "Pay Receiver"],
+    descriptions: ["Refund the sender", "Pay the receiver"]
+  },
+  fileURI: "https://...",
+  fileTypeExtension: "pdf"
+});
+```
+
+#### Evidence (from IPFS)
+```typescript
+interface Evidence {
+  name: string;
+  description: string;
+  fileURI?: string;
+  fileTypeExtension?: string;
+}
+
+// Upload evidence to IPFS
+const evidenceUri = await client.services.ipfs.uploadEvidence({
+  name: "Proof of Work",
+  description: "Documentation showing work was completed",
+  fileURI: "https://...",
+  fileTypeExtension: "pdf"
+});
+```
+
+### 6. Event Data Structures
+
+```typescript
+interface PaymentEvent {
+  id: string;
+  _transactionID: string;
+  _amount: string;
+  _party: string;
+  blockNumber: string;
+  blockTimestamp: string;
+  transactionHash: string;
+}
+
+interface EvidenceEvent {
+  _arbitrator: string;
+  _party: string;
+  _evidence: string;
+  _evidenceGroupID: string;
+  blockNumber: string;
+  transactionHash: string;
+}
+
+interface DisputeEvent {
+  _arbitrator: string;
+  _disputeID: string;
+  blockNumber: string;
+  blockTimestamp: string;
+  _metaEvidenceID: string;
+  _evidenceGroupID: string;
+  transactionHash: string;
+}
+
+interface HasToPayFeesEvent {
+  _transactionID: string;
+  blockNumber: string;
+  blockTimestamp: string;
+  _party: string;
+  transactionHash: string;
+}
+
+interface RulingEvent {
+  _arbitrator: string;
+  _disputeID: string;
+  _ruling: string;
+  blockNumber: string;
+  blockTimestamp: string;
+  transactionHash: string;
+}
+```
+
+### 7. Enums & Constants
+
+```typescript
+enum TransactionStatus {
+  NoDispute = 'NoDispute',
+  WaitingSender = 'WaitingSender',
+  WaitingReceiver = 'WaitingReceiver',
+  DisputeCreated = 'DisputeCreated',
+  Resolved = 'Resolved'
+}
+
+enum TokenTransactionStatus {
+  NoDispute = 'NoDispute',
+  WaitingSender = 'WaitingSender',
+  WaitingReceiver = 'WaitingReceiver',
+  DisputeCreated = 'DisputeCreated',
+  Resolved = 'Resolved'
+}
+
+enum DisputeStatus {
+  Waiting = 'Waiting',
+  Appealable = 'Appealable',
+  Solved = 'Solved'
+}
+
+enum Ruling {
+  RefusedToRule = 0,
+  SenderWins = 1,
+  ReceiverWins = 2
+}
+
+enum Party {
+  Sender = 'Sender',
+  Receiver = 'Receiver'
+}
+```
+
+### 8. Direct Service Access
+
+If you need to access services directly instead of using client convenience methods:
+
+```typescript
+// ETH Client Services
+const ethTransactionService = ethClient.services.ethTransaction;
+const ethEventService = ethClient.services.ethEvent;
+const disputeService = ethClient.services.dispute;
+const arbitratorService = ethClient.services.arbitrator;
+const ipfsService = ethClient.services.ipfs;
+
+// Token Client Services
+const tokenTransactionService = tokenClient.services.tokenTransaction;
+const tokenEventService = tokenClient.services.tokenEvent;
+// + same dispute, arbitrator, ipfs services
+
+// Example: Direct service method calls
+const ethTransaction = await ethTransactionService.getEthTransaction(transactionId);
+const tokenTransaction = await tokenTransactionService.getTokenTransaction(transactionId);
+const allEthMetaEvidence = await ethEventService.getAllEthMetaEvidence();
+const allTokenMetaEvidence = await tokenEventService.getAllTokenMetaEvidence();
+```
+
+### 9. Configuration Interface
+
+```typescript
+interface KlerosEscrowConfig {
+  provider: {
+    url: string;
+    networkId: number;
+  };
+  multipleArbitrableTransactionEth?: {
+    address: string;
+    abi?: any; // Optional - client uses default ABI
+  };
+  multipleArbitrableTransactionToken?: {
+    address: string;
+    abi?: any; // Optional - client uses default ABI
+  };
+  arbitrator?: {
+    address: string;
+    abi?: any; // Optional - client uses default ABI
+  };
+  ipfsGateway?: string; // Default: "https://cdn.kleros.link"
+  subgraphUrl?: string; // Required for subgraph operations
+}
+```
+
+### 10. Key Method Distinctions
+
+**Contract vs Subgraph Methods:**
+- **Contract methods** (e.g., `getEthTransaction`, `getTokenTransaction`) - Read from blockchain contracts, return structured data
+- **Subgraph methods** (e.g., `getAllEthMetaEvidence`, `getAllTokenTransactions`) - Query GraphQL subgraph, return raw event data
+- **Enhanced methods** (e.g., `getEnhancedTokenTransaction`) - Combine contract + subgraph + additional data
+
+**Direct vs Convenience Methods:**
+- **Client convenience methods** (e.g., `client.getEthTransaction()`) - Simplified access to common operations
+- **Service methods** (e.g., `client.services.ethTransaction.getEthTransaction()`) - Direct service access with full control
+
+**Read vs Write Operations:**
+- **Read operations** - Available on all clients, query blockchain state
+- **Write operations** (actions) - Only available when client created with signer, modify blockchain state
 
 ## 🏠 Implementation Guide
 
@@ -175,10 +594,10 @@ function UnifiedTransactionExplorer() {
   useEffect(() => {
     const loadAllTransactions = async () => {
       try {
-        // Load ETH transactions
-        const ethTx = await ethClient.services.ethEvent.getAllEthMetaEvidence();
+        // Load ETH meta evidence
+        const ethMetaEvidence = await ethClient.getAllEthMetaEvidence();
         const processedEthTx = await Promise.all(
-          ethTx.map(async (tx) => {
+          ethMetaEvidence.map(async (tx) => {
             const metaData = await safeLoadIPFS(tx._evidence);
             return {
               ...processTransactionData(tx, metaData),
@@ -188,12 +607,12 @@ function UnifiedTransactionExplorer() {
           })
         );
 
-        // Load Token transactions
-        const tokenTx = await tokenClient.services.tokenEvent.getAllTokenTransactions();
+        // Load Token meta evidence  
+        const tokenMetaEvidence = await tokenClient.services.tokenEvent.getAllTokenMetaEvidence();
         const processedTokenTx = await Promise.all(
-          tokenTx.map(async (tx) => {
+          tokenMetaEvidence.map(async (tx) => {
             const metaData = await safeLoadIPFS(tx._evidence);
-            const tokenInfo = await tokenClient.services.tokenTransaction.getTokenInfo(tx._token);
+            const tokenInfo = await tokenClient.getTokenInfo(tx._token);
             return {
               ...processTransactionData(tx, metaData),
               type: 'TOKEN',
@@ -313,7 +732,7 @@ function TransactionCard({ transaction, onClick }) {
 // Safe IPFS Loading (shared for both clients)
 const safeLoadIPFS = async (uri: string, client = ethClient) => {
   try {
-    return await client.services.ipfs.fetchFromIPFS(uri);
+    return await client.fetchFromIPFS(uri);
   } catch (error) {
     console.error(`Failed to load IPFS content for ${uri}:`, error);
     return {

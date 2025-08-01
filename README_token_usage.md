@@ -1,6 +1,6 @@
 # Kleros Escrow Data Service - Token Support
 
-This package now supports both ETH and ERC20 token transactions through separate clients.
+This package supports both ETH and ERC20 token transactions through separate clients. Both clients now provide full read and write capabilities when created with a signer.
 
 ## Installation
 
@@ -59,9 +59,56 @@ const tokenInfo = await tokenClient.getTokenInfo(tokenTransaction.token);
 console.log('Token Name:', tokenInfo.name);
 console.log('Token Symbol:', tokenInfo.symbol);
 console.log('Token Decimals:', tokenInfo.decimals);
+
+// Check if client has write capabilities
+if (tokenClient.canWrite()) {
+  console.log('Token client has write access');
+}
+```
+
+## Write Operations (New!)
+
+Both ETH and Token clients now support write operations when created with a signer:
+
+```typescript
+import { ethers } from 'ethers';
+
+// Create client with signer for write operations
+const provider = new ethers.providers.Web3Provider(window.ethereum);
+const signer = provider.getSigner();
+const tokenClientWithSigner = createKlerosEscrowTokenClient(tokenConfig, signer);
+
+// Create token transaction (requires ERC20 approval first)
+const result = await tokenClientWithSigner.actions.transaction.createTransaction({
+  receiver: '0x...',
+  timeoutPayment: 86400, // 24 hours
+  metaEvidence: 'ipfs://...',
+  amount: '1000000000000000000', // Token amount in smallest unit
+  tokenAddress: '0x...' // ERC20 token contract
+});
+
+// Payment operations
+await tokenClientWithSigner.actions.transaction.pay({
+  transactionId: '1',
+  amount: '500000000000000000' // Partial payment
+});
+
+// Dispute operations (fees paid in ETH)
+await tokenClientWithSigner.actions.dispute.payArbitrationFeeBySender({
+  transactionId: '1',
+  value: '100000000000000000' // ETH for arbitration fees
+});
+
+// Evidence submission
+await tokenClientWithSigner.actions.evidence.submitEvidence({
+  transactionId: '1',
+  evidence: 'ipfs://evidence-hash'
+});
 ```
 
 ## Key Differences
+
+Both clients now provide identical capabilities - the main difference is the type of assets they handle:
 
 ### Token Transaction Interface
 ```typescript
@@ -84,7 +131,13 @@ interface TokenTransaction {
 - `getAllTokenTransactions()` - Get all token transactions from subgraph
 
 **Enhanced data:**
-- `getEnhancedTransaction(transactionId)` - Combines contract data with token info and events
+- `getEnhancedTokenTransaction(transactionId)` - Combines contract data with token info and events
+
+**Write operations:**
+- All transaction actions (create, pay, reimburse, execute, timeout)
+- All dispute actions (arbitration fees, appeals)
+- Evidence submission
+- Full parity with ETH client capabilities
 
 ## Subgraph Integration
 
@@ -110,7 +163,7 @@ console.log(`User has ${userTransactions.length} token transactions`);
 
 ### Get enhanced transaction data
 ```typescript
-const enhanced = await tokenClient.getEnhancedTransaction('123');
+const enhanced = await tokenClient.getEnhancedTokenTransaction('123');
 console.log('Transaction:', enhanced);
 console.log('Token Info:', enhanced.tokenInfo);
 console.log('Events:', enhanced.events);

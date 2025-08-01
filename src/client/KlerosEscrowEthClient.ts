@@ -1,4 +1,4 @@
-//read/listen imports
+// Import necessary libraries and types
 import { ethers } from "ethers";
 import {
   EthTransactionService,
@@ -19,6 +19,7 @@ const DEFAULT_IPFS_GATEWAY = "https://cdn.kleros.link";
 
 /**
  * Client for interacting with Kleros Escrow ETH services
+ * Provides read and write operations for escrow transactions
  */
 export class KlerosEscrowEthClient {
   /**

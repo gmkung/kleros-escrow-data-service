@@ -8,15 +8,18 @@ import {
 } from "../services";
 import { KlerosEscrowConfig } from "../types";
 import { TokenTransaction } from "../types/token";
+import { TransactionActions, DisputeActions, EvidenceActions } from "../actions";
 
 // Import ABIs
 import MultipleArbitrableTransactionTokenABI from "../reference/MultipleArbitrableTransactionToken_ABI.json";
 import KlerosLiquidABI from "../reference/KlerosLiquid/KlerosLiquid_ABI.json";
 
+const DEFAULT_CONTRACT_ADDRESS = "0xBCf0d1AD453728F75e9cFD4358ED187598A45e6c";
 const DEFAULT_IPFS_GATEWAY = "https://cdn.kleros.link";
 
 /**
  * Client for interacting with Kleros Escrow Token services
+ * Provides read and write operations for token escrow transactions
  */
 export class KlerosEscrowTokenClient {
   /**
@@ -31,6 +34,15 @@ export class KlerosEscrowTokenClient {
   };
 
   /**
+   * Actions for writing data (only available if a signer is provided)
+   */
+  readonly actions?: {
+    transaction: TransactionActions;
+    dispute: DisputeActions;
+    evidence: EvidenceActions;
+  };
+
+  /**
    * Creates a new KlerosEscrowTokenClient
    * @param config The Kleros Escrow configuration
    * @param signer Optional signer for write operations
@@ -41,15 +53,19 @@ export class KlerosEscrowTokenClient {
   ) {
     // Ensure the config has the necessary token contract configuration
     if (!this.config.multipleArbitrableTransactionToken) {
-      throw new Error(
-        "multipleArbitrableTransactionToken configuration is required for token client"
-      );
+      this.config.multipleArbitrableTransactionToken = {
+        address: DEFAULT_CONTRACT_ADDRESS,
+        abi: MultipleArbitrableTransactionTokenABI,
+      };
+    } else {
+      // Use defaults if not provided
+      this.config.multipleArbitrableTransactionToken.address =
+        this.config.multipleArbitrableTransactionToken.address ||
+        DEFAULT_CONTRACT_ADDRESS;
+      this.config.multipleArbitrableTransactionToken.abi =
+        this.config.multipleArbitrableTransactionToken.abi ||
+        MultipleArbitrableTransactionTokenABI;
     }
-
-    // Use provided ABI or default
-    this.config.multipleArbitrableTransactionToken.abi =
-      this.config.multipleArbitrableTransactionToken.abi ||
-      MultipleArbitrableTransactionTokenABI;
 
     // Ensure arbitrator configuration if it exists
     if (this.config.arbitrator && !this.config.arbitrator.abi) {
@@ -64,6 +80,15 @@ export class KlerosEscrowTokenClient {
       arbitrator: new ArbitratorService(this.config),
       ipfs: new IPFSService(this.config.ipfsGateway || DEFAULT_IPFS_GATEWAY),
     };
+
+    // Initialize actions if a signer is provided
+    if (signer) {
+      this.actions = {
+        transaction: new TransactionActions(this.config, signer),
+        dispute: new DisputeActions(this.config, signer),
+        evidence: new EvidenceActions(this.config, signer),
+      };
+    }
   }
 
   /**
@@ -72,6 +97,14 @@ export class KlerosEscrowTokenClient {
    */
   getConfig(): KlerosEscrowConfig {
     return this.config;
+  }
+
+  /**
+   * Checks if this client has write capabilities
+   * @returns True if the client can perform write operations
+   */
+  canWrite(): boolean {
+    return !!this.actions;
   }
 
   /**
