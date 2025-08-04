@@ -43,14 +43,19 @@ export interface Transaction {
 }
 
 /**
- * Parameters for creating a new transaction
+ * Parameters for creating a new ETH transaction
  */
-export interface CreateTransactionParams {
+export interface CreateEthTransactionParams {
   receiver: string;
   timeoutPayment: number;
   metaEvidence: string;
   value: string; // Amount in Wei
 }
+
+/**
+ * Parameters for creating a new transaction (union type)
+ */
+export type CreateTransactionParams = CreateEthTransactionParams | import('./token').CreateTokenTransactionParams;
 
 /**
  * Parameters for paying or reimbursing

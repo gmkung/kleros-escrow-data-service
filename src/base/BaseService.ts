@@ -1,8 +1,10 @@
 import { ethers } from "ethers";
 import { KlerosEscrowConfig } from "../types/config";
 import MultipleArbitrableTransactionABI from "../reference/MultipleArbitrableTransaction_ABI.json";
+import MultipleArbitrableTransactionTokenABI from "../reference/MultipleArbitrableTransactionToken_ABI.json";
 
-const DEFAULT_CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
+const DEFAULT_ETH_CONTRACT_ADDRESS = "0x0d67440946949FE293B45c52eFD8A9b3d51e2522";
+const DEFAULT_TOKEN_CONTRACT_ADDRESS = "0xBCf0d1AD453728F75e9cFD4358ED187598A45e6c";
 
 /**
  * Base class for all Kleros Escrow services and actions
@@ -46,10 +48,20 @@ export abstract class BaseService {
 
     // Initialize the escrow contract with the appropriate signer or provider
     const contractProvider = this.signer || this.provider;
-    const contractAddress =
-      config.multipleArbitrableTransactionEth?.address || DEFAULT_CONTRACT_ADDRESS;
-    const contractABI =
-      config.multipleArbitrableTransactionEth?.abi || MultipleArbitrableTransactionABI;
+    
+    // Determine which contract configuration to use (ETH or Token)
+    let contractAddress: string;
+    let contractABI: any[];
+    
+    if (config.multipleArbitrableTransactionToken) {
+      // Use token contract configuration
+      contractAddress = config.multipleArbitrableTransactionToken.address || DEFAULT_TOKEN_CONTRACT_ADDRESS;
+      contractABI = config.multipleArbitrableTransactionToken.abi || MultipleArbitrableTransactionTokenABI;
+    } else {
+      // Use ETH contract configuration (default)
+      contractAddress = config.multipleArbitrableTransactionEth?.address || DEFAULT_ETH_CONTRACT_ADDRESS;
+      contractABI = config.multipleArbitrableTransactionEth?.abi || MultipleArbitrableTransactionABI;
+    }
 
     console.log('Contract initialization:', {
       address: contractAddress,

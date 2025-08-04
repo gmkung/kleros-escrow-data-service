@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
-import { CreateTransactionParams, PaymentParams } from "../types/transaction";
+import { CreateTransactionParams, PaymentParams, CreateEthTransactionParams } from "../types/transaction";
+import { CreateTokenTransactionParams } from "../types/token";
 import { KlerosEscrowConfig } from "../types/config";
 import { BaseService } from "../base/BaseService";
 
@@ -22,7 +23,6 @@ export class TransactionActions extends BaseService {
   /**
    * Creates a new escrow transaction
    * @param params Parameters for creating the transaction
-   * @param params.value Amount in Wei
    * @returns The transaction response and the transaction ID
    */
   createTransaction = async (params: CreateTransactionParams): Promise<{
@@ -31,19 +31,35 @@ export class TransactionActions extends BaseService {
   }> => {
     this.ensureCanWrite();
     
-    const tx = await this.escrowContract.createTransaction(
-      params.timeoutPayment,
-      params.receiver,
-      params.metaEvidence,
-      { value: params.value } // Already in Wei
-    );
+    let tx: ethers.providers.TransactionResponse;
+    
+    // Check if this is a token transaction by looking for tokenAddress parameter
+    if ('tokenAddress' in params) {
+      // Token transaction
+      tx = await this.escrowContract.createTransaction(
+        params.amount,
+        params.tokenAddress,
+        params.timeoutPayment,
+        params.receiver,
+        params.metaEvidence
+      );
+    } else {
+      // ETH transaction
+      tx = await this.escrowContract.createTransaction(
+        params.timeoutPayment,
+        params.receiver,
+        params.metaEvidence,
+        { value: params.value } // Already in Wei
+      );
+    }
 
     // Wait for the transaction to be mined
     const receipt = await tx.wait();
 
     // Find the transaction ID from the event logs
-    const event = receipt.events?.find((e: ethers.Event) => e.event === "MetaEvidence");
-    const transactionId = event?.args?._metaEvidenceID.toString();
+    const events = (receipt as any).events;
+    const event = events?.find((e: any) => e.event === "MetaEvidence");
+    const transactionId = event?.args?._metaEvidenceID?.toString() || "0";
 
     return {
       transactionResponse: tx,
@@ -139,13 +155,24 @@ export class TransactionActions extends BaseService {
   estimateGasForCreateTransaction = async (
     params: CreateTransactionParams
   ): Promise<ethers.BigNumber> => {
-    const gasEstimate = await this.escrowContract.estimateGas.createTransaction(
-      params.timeoutPayment,
-      params.receiver,
-      params.metaEvidence,
-      { value: params.value }
-    );
-
-    return gasEstimate;
+    // Check if this is a token transaction by looking for tokenAddress parameter
+    if ('tokenAddress' in params) {
+      // Token transaction
+      return await this.escrowContract.estimateGas.createTransaction(
+        params.amount,
+        params.tokenAddress,
+        params.timeoutPayment,
+        params.receiver,
+        params.metaEvidence
+      );
+    } else {
+      // ETH transaction
+      return await this.escrowContract.estimateGas.createTransaction(
+        params.timeoutPayment,
+        params.receiver,
+        params.metaEvidence,
+        { value: params.value }
+      );
+    }
   }
 }

@@ -39,11 +39,11 @@ export enum TokenTransactionStatus {
  * Parameters for creating a new token transaction
  */
 export interface CreateTokenTransactionParams {
-  amount: string; // Amount in token's smallest unit
-  token: string; // ERC20 token contract address
   receiver: string;
   timeoutPayment: number;
   metaEvidence: string;
+  amount: string; // Amount in token's smallest unit
+  tokenAddress: string; // ERC20 token contract address
 }
 
 /**
